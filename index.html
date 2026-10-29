@@ -1,0 +1,3879 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<meta name="color-scheme" content="light dark">
+<title>AI 学习伙伴 · 大学生多角色助手</title>
+<style>
+/* =================================================================
+   设计令牌
+   ================================================================= */
+:root{
+  --bg:#f4f6fb;
+  --surface:#ffffff;
+  --surface-2:#eef1f8;
+  --surface-3:#e4e8f2;
+  --text:#101827;
+  --text-2:#4c5871;
+  --muted:#8a94ab;
+  --border:#e5e9f2;
+  --border-2:#d5dbe9;
+  /* 角色强调色：由 JS 依据当前角色动态注入 */
+  --accent:#4f46e5;
+  --accent-soft:#ecebff;
+  --accent-grad:linear-gradient(135deg,#4f46e5,#6d5ce7);
+  --ring:0 0 0 3px rgba(79,70,229,.18);
+  --danger:#e5484d;
+  --ok:#10a37f;
+  --sh-sm:0 1px 2px rgba(16,24,39,.05);
+  --sh:0 4px 16px rgba(16,24,39,.06);
+  --sh-lg:0 20px 48px rgba(16,24,39,.14);
+  --code-bg:#f7f9fd; --code-head:#eef2fa;
+  --c-kw:#7c3aed; --c-str:#0a7d55; --c-com:#94a1bb; --c-num:#b45309; --c-fn:#2563eb;
+  --rail-w:274px;
+  --read-w:820px;
+  /* v5 新增：演示模式 / 跨角色洞察 语义色 */
+  --demo:#9a6206; --demo-bg:#fdf6e7; --demo-bd:#eed9a8; --demo-ink:#7a4d02;
+  --insight:#4f46b8; --insight-bg:#eeecfd; --insight-bd:#c5bff2;
+}
+[data-theme="dark"]{
+  --bg:#0a0f1e;
+  --surface:#141b2d;
+  --surface-2:#1c2540;
+  --surface-3:#243050;
+  --text:#e9eefb;
+  --text-2:#9daccb;
+  --muted:#6d7c9e;
+  --border:#232e4b;
+  --border-2:#2f3d61;
+  --danger:#ff6b6f;
+  --ok:#2bd4a6;
+  --sh-sm:0 1px 2px rgba(0,0,0,.4);
+  --sh:0 6px 20px rgba(0,0,0,.36);
+  --sh-lg:0 24px 56px rgba(0,0,0,.55);
+  --code-bg:#0d1526; --code-head:#16203a;
+  --c-kw:#c4b5fd; --c-str:#86efac; --c-com:#64748b; --c-num:#fbbf24; --c-fn:#7dd3fc;
+  --demo:#f0c674; --demo-bg:#2a2113; --demo-bd:#4d3c1d; --demo-ink:#f5d99a;
+  --insight:#b9b3f5; --insight-bg:#1e1b3a; --insight-bd:#3c3570;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei","Segoe UI",system-ui,-apple-system,sans-serif;
+  color:var(--text);height:100dvh;overflow:hidden;
+  background:var(--bg);
+  transition:background-color .3s,color .3s;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font-family:inherit}
+
+/* =================================================================
+   骨架：桌面 = 左侧导航 + 主舞台
+   ================================================================= */
+.app{display:grid;grid-template-columns:var(--rail-w) 1fr;height:100dvh}
+
+/* ---------- 左侧角色导航 ---------- */
+.rail{
+  display:flex;flex-direction:column;min-height:0;
+  background:var(--surface);border-right:1px solid var(--border);
+  padding:18px 14px 14px;
+}
+.brand{display:flex;align-items:center;gap:11px;padding:0 6px 18px}
+.brand-mark{
+  width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:19px;
+  background:var(--accent-grad);box-shadow:var(--sh);transition:background .4s;
+}
+.brand-text b{display:block;font-size:14.5px;font-weight:750;letter-spacing:.2px}
+.brand-text i{display:block;font-size:11px;font-style:normal;color:var(--muted);margin-top:2px}
+
+.rail-label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.8px;padding:0 8px 9px;text-transform:uppercase}
+.roles{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow-y:auto}
+.role{
+  position:relative;display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:10px 11px;border:none;border-radius:13px;cursor:pointer;background:transparent;
+  color:var(--text-2);transition:background .18s,color .18s,transform .18s;
+}
+.role:hover{background:var(--surface-2);color:var(--text)}
+.role-ico{
+  width:34px;height:34px;flex:none;border-radius:11px;display:grid;place-items:center;font-size:16px;
+  background:var(--surface-2);transition:background .22s,box-shadow .22s;
+}
+.role-info{min-width:0;flex:1}
+.role-info b{display:block;font-size:13.5px;font-weight:650;line-height:1.3}
+.role-info i{display:block;font-size:11px;font-style:normal;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 选中态：角色色由内联 --c 注入 */
+.role.active{background:var(--accent-soft);color:var(--text);font-weight:700}
+.role.active .role-ico{background:var(--c,var(--accent));box-shadow:0 4px 12px -2px var(--c,var(--accent))}
+.role.active::before{
+  content:"";position:absolute;left:-14px;top:50%;transform:translateY(-50%);
+  width:3px;height:22px;border-radius:0 3px 3px 0;background:var(--c,var(--accent));
+}
+
+.rail-foot{border-top:1px solid var(--border);margin-top:12px;padding-top:12px;display:flex;flex-direction:column;gap:4px}
+.rail-btn{
+  display:flex;align-items:center;gap:9px;width:100%;padding:9px 11px;border:none;border-radius:11px;
+  background:transparent;color:var(--text-2);font-size:12.5px;font-weight:600;cursor:pointer;transition:.18s;
+}
+.rail-btn:hover{background:var(--surface-2);color:var(--text)}
+.status{
+  display:flex;align-items:center;gap:8px;margin-top:6px;padding:9px 11px;border-radius:11px;
+  background:var(--surface-2);font-size:11px;color:var(--muted);cursor:pointer;transition:.18s;
+}
+.status:hover{background:var(--surface-3)}
+.status .dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--muted);transition:.2s}
+.status.ok .dot{background:var(--ok);box-shadow:0 0 0 3px rgba(16,163,127,.18)}
+.status.err .dot{background:var(--danger);box-shadow:0 0 0 3px rgba(229,72,77,.18)}
+.status.busy .dot{background:#e8a33d;animation:pulse 1.1s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.status span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- 主舞台 ---------- */
+.stage{display:flex;flex-direction:column;min-width:0;min-height:0}
+
+.stage-head{
+  flex:none;display:flex;align-items:center;gap:13px;
+  padding:14px 24px;border-bottom:1px solid var(--border);background:var(--surface);
+}
+.head-ico{
+  width:38px;height:38px;flex:none;border-radius:12px;display:grid;place-items:center;font-size:18px;
+  background:var(--accent-grad);transition:background .4s;
+}
+.head-meta{min-width:0;flex:1}
+.head-meta h1{font-size:16px;font-weight:750;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head-meta p{font-size:11.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.head-acts{display:flex;align-items:center;gap:7px}
+.ibtn{
+  display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:11px;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface);color:var(--text-2);
+  font-size:12.5px;font-weight:600;transition:.18s;
+}
+.ibtn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+/* ---------- 对话区 ---------- */
+.chat{
+  flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  padding:26px max(24px, calc((100% - var(--read-w)) / 2)) 8px;
+  display:flex;flex-direction:column;gap:22px;
+}
+.msg{display:flex;gap:10px;max-width:88%;position:relative;animation:rise .32s cubic-bezier(.2,.75,.3,1) both}
+.msg.ai{align-self:flex-start}
+.msg.user{align-self:flex-end;flex-direction:row-reverse}
+@keyframes rise{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+.msg-ava{
+  flex:none;width:32px;height:32px;border-radius:11px;display:grid;place-items:center;font-size:15px;
+  background:var(--accent-grad);transition:background .4s;box-shadow:var(--sh-sm);
+}
+.msg.user .msg-ava{background:var(--accent-soft);border:1px solid var(--border-2);font-size:0}
+.msg.user .msg-ava::after{content:"我";font-size:12px;font-weight:700;color:var(--accent)}
+.bubble{
+  padding:13px 17px;border-radius:17px;line-height:1.78;font-size:14.5px;
+  word-break:break-word;overflow-wrap:anywhere;
+}
+.msg.ai .bubble{background:var(--surface);border:1px solid var(--border);border-top-left-radius:6px;box-shadow:var(--sh-sm)}
+.msg.user .bubble{background:var(--accent-grad);color:#fff;border-top-right-radius:6px;box-shadow:var(--sh);transition:background .4s}
+.bubble h1,.bubble h2,.bubble h3{margin:12px 0 7px;font-size:15.5px;font-weight:750;line-height:1.5}
+.bubble h1:first-child,.bubble h2:first-child,.bubble h3:first-child{margin-top:2px}
+.bubble ul,.bubble ol{margin:7px 0 7px 4px;padding-left:18px}
+.bubble li{margin:5px 0}
+.bubble li::marker{color:var(--accent)}
+.bubble strong{font-weight:750}
+.bubble code{background:rgba(127,127,127,.16);padding:2px 6px;border-radius:6px;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:13px}
+.bubble>div{margin:1px 0}
+.caret{display:inline-block;width:7px;height:15px;margin-left:2px;vertical-align:-2px;border-radius:2px;background:var(--accent);animation:caret .9s steps(1) infinite}
+@keyframes caret{50%{opacity:0}}
+
+/* 消息悬浮操作条 */
+.msg-acts{
+  /* 用 padding-top 充当「桥接区」：鼠标从气泡下移经过这段透明区域时，
+     仍悬停在本元素（.msg 的后代）上，.msg:hover 不会丢失，按钮不再提前消失 */
+  position:absolute;top:100%;padding-top:8px;display:flex;gap:6px;
+  opacity:0;transform:translateY(-3px);transition:.18s;pointer-events:none;
+  z-index:3;
+}
+.msg.ai .msg-acts{left:36px}
+.msg.user .msg-acts{right:0}
+.msg:hover .msg-acts{opacity:1;transform:none;pointer-events:auto}
+.msg:hover .mini{ /* 悬停态下按钮可点击 */ }
+.mini{
+  font-size:10.5px;font-weight:650;cursor:pointer;line-height:1;padding:5px 10px;border-radius:8px;
+  color:var(--muted);background:var(--surface);border:1px solid var(--border);box-shadow:var(--sh-sm);transition:.16s;
+}
+.mini:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+
+/* 示例问题卡片（空状态） */
+.welcome{display:flex;flex-direction:column;gap:16px;animation:rise .4s both}
+.welcome-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:24px 24px 22px;
+  box-shadow:var(--sh-sm);
+}
+.welcome-card h2{font-size:19px;font-weight:750;letter-spacing:.2px;display:flex;align-items:center;gap:10px}
+.welcome-card p{font-size:13.5px;color:var(--text-2);line-height:1.75;margin-top:9px}
+.welcome-note{
+  display:inline-flex;align-items:center;gap:7px;margin-top:14px;padding:6px 12px;border-radius:999px;
+  background:var(--accent-soft);color:var(--accent);font-size:11.5px;font-weight:650;
+}
+.ex-title{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.6px;padding:2px 4px 10px;text-transform:uppercase}
+.ex-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.ex-card{
+  text-align:left;cursor:pointer;padding:14px 16px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);color:var(--text-2);
+  font-size:13px;line-height:1.6;transition:.2s;
+}
+.ex-card:hover{border-color:var(--accent);color:var(--text);transform:translateY(-2px);box-shadow:var(--sh)}
+.ex-card b{display:block;color:var(--accent);font-size:11px;font-weight:700;margin-bottom:5px;letter-spacing:.4px}
+
+/* 代码块 */
+.code-wrap{margin:11px 0;border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--code-bg)}
+.code-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 8px 6px 13px;background:var(--code-head);border-bottom:1px solid var(--border)}
+.code-lang{font-family:ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.6px;text-transform:lowercase}
+.code-copy{cursor:pointer;font-size:11px;font-weight:650;padding:3px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:.16s}
+.code-copy:hover{color:var(--accent);border-color:var(--accent)}
+.code-wrap pre{margin:0;padding:13px 15px;overflow-x:auto;background:transparent;line-height:1.68}
+.code-wrap code{background:none;padding:0;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:12.8px}
+.c-kw{color:var(--c-kw);font-weight:600}
+.c-str{color:var(--c-str)}
+.c-com{color:var(--c-com);font-style:italic}
+.c-num{color:var(--c-num)}
+.c-fn{color:var(--c-fn)}
+
+/* 代码块：折叠（缩略）+ 放大 */
+.code-tools{display:flex;align-items:center;gap:6px}
+.code-zoom{cursor:pointer;font-size:11px;font-weight:650;padding:3px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:.16s}
+.code-zoom:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft)}
+.code-toggle{cursor:pointer;font-size:11px;font-weight:650;padding:3px 10px;border-radius:7px;border:1px solid var(--border);background:var(--surface);color:var(--text-2);transition:.16s}
+.code-toggle:hover{color:var(--accent);border-color:var(--accent)}
+.code-wrap.collapsed .code-pre{max-height:236px;overflow:hidden}
+.code-wrap.collapsed .code-fade{
+  position:absolute;left:0;right:0;bottom:0;height:64px;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(0,0,0,0),var(--code-bg) 86%);
+  border-bottom-left-radius:12px;border-bottom-right-radius:12px;
+}
+.code-wrap.collapsed .code-more{
+  display:flex;align-items:center;justify-content:center;gap:6px;width:100%;
+  cursor:pointer;font-size:12px;font-weight:650;color:var(--accent);
+  padding:9px 0 8px;background:transparent;border:none;border-top:1px dashed var(--border);
+}
+.code-wrap{position:relative}
+.code-pre{margin:0;padding:13px 15px;overflow-x:auto;background:transparent;line-height:1.68}
+.code-more{display:none}
+.code-fade{display:none}
+
+/* 代码放大查看模态框 */
+.code-modal{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;
+  background:rgba(8,10,20,.62);backdrop-filter:blur(4px);padding:max(18px,4vw)}
+.code-modal.show{display:flex;animation:voFade .2s ease}
+.cm-box{width:min(960px,100%);max-height:88vh;display:flex;flex-direction:column;
+  background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--sh-lg)}
+.cm-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.cm-title{display:flex;align-items:center;gap:9px;font-weight:700;font-size:14px}
+.cm-title .code-lang{text-transform:lowercase}
+.cm-acts{display:flex;align-items:center;gap:8px}
+.cm-body{overflow:auto;padding:16px 18px;background:var(--code-bg)}
+.cm-body pre{margin:0;white-space:pre;font-family:ui-monospace,Consolas,Monaco,monospace;font-size:13.2px;line-height:1.7}
+.cm-body code{background:none;font-family:inherit}
+.cm-close{cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text-2);
+  border-radius:9px;width:34px;height:34px;font-size:16px;display:grid;place-items:center;transition:.15s}
+.cm-close:hover{color:var(--accent);border-color:var(--accent)}
+
+/* 右上角：文字 / 语音 模式切换 */
+.mode-switch{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:999px;padding:3px;gap:2px}
+.mode-opt{display:inline-flex;align-items:center;gap:5px;border:none;background:transparent;cursor:pointer;
+  font-size:12.5px;font-weight:650;color:var(--muted);border-radius:999px;padding:6px 13px;transition:.16s;white-space:nowrap}
+.mode-opt span{font-size:13px}
+.mode-opt.active{background:var(--surface);color:var(--accent);box-shadow:var(--sh-sm)}
+.mode-opt[data-mode="voice"].active{background:var(--accent-grad);color:#fff}
+
+/* 左侧会话列表 */
+.rail-label{font-size:11px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--muted);padding:4px 6px}
+.sessions{display:flex;flex-direction:column;gap:3px;max-height:38vh;overflow-y:auto;padding-right:2px}
+.session{position:relative;display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  border:1px solid transparent;border-radius:12px;padding:8px 10px;cursor:pointer;
+  background:var(--surface-2);transition:.15s}
+.session:hover{background:var(--surface);border-color:var(--border)}
+.session.active{background:var(--accent-soft);border-color:var(--accent)}
+.sess-ico{flex:none;width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+  background:var(--accent-grad);box-shadow:var(--sh-sm)}
+.sess-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sess-acts{display:none;align-items:center;gap:2px;flex:none}
+.session:hover .sess-acts{display:inline-flex}
+.sess-edit,.sess-del{cursor:pointer;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;
+  font-size:12px;border:none;background:transparent;color:var(--muted);transition:.14s}
+.sess-edit:hover{background:var(--surface-3);color:var(--accent)}
+.sess-del:hover{background:rgba(229,72,77,.14);color:var(--danger)}
+.new-sess{justify-content:center;color:var(--accent);border:1px dashed var(--border);background:transparent;font-weight:650}
+.new-sess:hover{border-color:var(--accent);background:var(--accent-soft)}
+.rail-foot{margin-top:auto}
+
+/* 打字指示 */
+.typing{display:inline-flex;align-items:center;gap:5px;padding:15px 18px}
+.typing span{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:blink 1.3s infinite ease-in-out}
+.typing span:nth-child(2){animation-delay:.18s}
+.typing span:nth-child(3){animation-delay:.36s}
+@keyframes blink{0%,80%,100%{opacity:.25;transform:translateY(0)}45%{opacity:1;transform:translateY(-3px)}}
+
+/* 回到最新 */
+.jump{
+  position:absolute;left:50%;transform:translateX(-50%) translateY(8px);bottom:14px;
+  display:inline-flex;align-items:center;gap:6px;padding:8px 15px;border-radius:999px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--border);box-shadow:var(--sh-lg);
+  color:var(--text-2);font-size:12px;font-weight:650;opacity:0;pointer-events:none;transition:.22s;z-index:5;
+}
+.jump.show{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
+.jump:hover{color:var(--accent);border-color:var(--accent)}
+
+/* ---------- 输入区 ---------- */
+.composer{
+  flex:none;position:relative;
+  padding:14px max(24px, calc((100% - var(--read-w)) / 2)) 18px;
+  background:linear-gradient(to top, var(--bg) 62%, transparent);
+}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.chip{
+  cursor:pointer;padding:7px 13px;border-radius:999px;font-size:12.5px;font-weight:600;
+  background:var(--surface);border:1px solid var(--border);color:var(--text-2);transition:.18s;
+}
+.chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+.chip.warn:hover{border-color:var(--danger);color:var(--danger);background:rgba(229,72,77,.08)}
+.input-wrap{
+  display:flex;align-items:flex-end;gap:10px;padding:8px 8px 8px 18px;
+  background:var(--surface);border:1px solid var(--border);border-radius:21px;
+  box-shadow:var(--sh);transition:border-color .2s,box-shadow .2s;
+}
+.input-wrap:focus-within{border-color:var(--accent);box-shadow:var(--ring),var(--sh)}
+#input{flex:1;resize:none;outline:none;border:none;background:transparent;color:var(--text);font-size:14.5px;line-height:1.6;min-height:26px;max-height:180px;padding:9px 0}
+#input::placeholder{color:var(--muted)}
+#sendBtn{
+  flex:none;width:44px;height:44px;border:none;border-radius:15px;cursor:pointer;
+  display:grid;place-items:center;color:#fff;background:var(--accent-grad);
+  box-shadow:var(--sh);transition:.2s;
+}
+#sendBtn:hover{transform:translateY(-1px);box-shadow:var(--sh-lg)}
+#sendBtn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+#sendBtn svg{width:19px;height:19px}
+#sendBtn.stop{background:var(--danger)}
+.hint{text-align:center;font-size:11px;color:var(--muted);margin-top:9px}
+
+/* =================================================================
+   附件系统 + 语音输入
+   ================================================================= */
+.att-bar{display:none;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.att-bar.show{display:flex}
+.att-chip{
+  position:relative;display:flex;align-items:center;gap:8px;max-width:230px;
+  padding:6px 30px 6px 8px;border-radius:12px;font-size:12px;
+  background:var(--surface);border:1px solid var(--border);box-shadow:var(--sh-sm);
+}
+.att-chip .att-thumb{width:34px;height:34px;flex:none;border-radius:8px;object-fit:cover;cursor:zoom-in}
+.att-chip .att-ico{
+  width:34px;height:34px;flex:none;border-radius:8px;display:grid;place-items:center;
+  font-size:16px;background:var(--accent-soft);
+}
+.att-chip .att-info{min-width:0}
+.att-chip .att-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:650;color:var(--text)}
+.att-chip .att-sub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.att-chip.err{border-color:var(--danger)}
+.att-chip.err .att-sub{color:var(--danger)}
+.att-chip.parsing .att-sub{color:var(--accent)}
+.att-x{
+  position:absolute;top:4px;right:4px;width:18px;height:18px;border:none;border-radius:6px;
+  background:transparent;color:var(--muted);cursor:pointer;font-size:12px;line-height:1;
+  display:grid;place-items:center;
+}
+.att-x:hover{background:var(--surface-3);color:var(--danger)}
+.att-vision-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;font-size:12px;font-weight:650;
+  border:1px dashed var(--accent);color:var(--accent);background:var(--accent-soft);cursor:pointer;
+}
+.input-wrap.drag{border-color:var(--accent);border-style:dashed;box-shadow:var(--ring),var(--sh)}
+.drag-hint{
+  display:none;position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);
+  padding:8px 16px;border-radius:12px;font-size:12.5px;font-weight:650;white-space:nowrap;
+  background:var(--accent-grad);color:#fff;box-shadow:var(--sh-lg);pointer-events:none;z-index:5;
+}
+.input-wrap.drag .drag-hint{display:block}
+.cbtn{
+  flex:none;width:38px;height:38px;border:none;border-radius:12px;cursor:pointer;
+  display:grid;place-items:center;font-size:16px;background:transparent;color:var(--muted);
+  transition:.18s;margin-bottom:3px;
+}
+.cbtn:hover{background:var(--surface-2);color:var(--accent)}
+.cbtn:disabled{opacity:.35;cursor:not-allowed}
+/* 移动端附件按钮：增大触摸区域 + 文字提示 */
+@media (max-width:900px){
+  #attBtnLabel{width:auto;padding:8px 14px;border-radius:12px;font-size:13px;gap:5px}
+  #attBtnLabel::after{content:"上传";font-size:11px;font-weight:650}
+}
+#micBtn.rec{color:#fff;background:var(--danger);animation:micPulse 1.2s infinite}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}55%{box-shadow:0 0 0 9px rgba(229,72,77,0)}}
+/* 气泡内附件展示 */
+.b-att{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.b-att img{max-width:210px;max-height:150px;border-radius:10px;cursor:zoom-in;border:1px solid var(--border)}
+.b-att .b-file{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:9px;font-size:11.5px;font-weight:600;
+  background:var(--surface-2);border:1px solid var(--border);color:var(--text-2);
+}
+/* =================================================================
+   Thinking 模型（qwen3-vl-thinking 等）思考链折叠展示
+   ================================================================= */
+.think-box{
+  margin:0 0 10px;border:1px solid var(--border);border-radius:11px;
+  background:var(--surface-2);overflow:hidden;
+}
+.think-box summary{
+  cursor:pointer;user-select:none;padding:7px 12px;font-size:12px;font-weight:650;
+  color:var(--text-2);list-style:none;display:flex;align-items:center;gap:6px;
+}
+.think-box summary::-webkit-details-marker{display:none}
+.think-box summary::before{content:"▸";transition:.18s;color:var(--muted)}
+.think-box[open] summary::before{transform:rotate(90deg)}
+.think-box summary:hover{color:var(--accent)}
+.think-body{
+  padding:4px 12px 10px;font-size:12.5px;line-height:1.7;color:var(--text-2);
+  max-height:260px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;
+}
+.msg.user .bubble a{color:#fff;text-decoration:underline;text-underline-offset:2px}
+.bubble a{color:var(--accent);text-decoration:underline;text-underline-offset:2px;word-break:break-all}
+.bubble a:hover{opacity:.82}
+.msg.user .b-att .b-file{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.24);color:#fff}
+/* 图片放大 */
+.img-mask{
+  position:fixed;inset:0;z-index:180;display:none;align-items:center;justify-content:center;padding:26px;
+  background:rgba(5,9,18,.78);cursor:zoom-out;
+}
+.img-mask.show{display:flex}
+.img-mask img{max-width:100%;max-height:100%;border-radius:12px;box-shadow:var(--sh-lg)}
+
+/* =================================================================
+   右侧抽屉：学生画像
+   ================================================================= */
+.drawer{
+  position:fixed;top:0;right:0;bottom:0;width:min(372px,92vw);z-index:70;
+  display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);
+  box-shadow:var(--sh-lg);transform:translateX(102%);transition:transform .32s cubic-bezier(.4,0,.2,1);
+}
+.drawer.open{transform:none}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:20px 20px 10px}
+.drawer-head h3{font-size:15px;font-weight:750;display:flex;align-items:center;gap:9px}
+.drawer-hint{font-size:12px;color:var(--muted);line-height:1.65;padding:0 20px 13px}
+.drawer-foot{padding:0 20px 18px}
+.drawer-foot .btn{width:100%;justify-content:center;padding:11px}
+
+/* =================================================================
+   通用按钮 / 弹窗
+   ================================================================= */
+.btn{
+  cursor:pointer;font-size:13px;font-weight:650;border:1px solid transparent;border-radius:11px;padding:9px 15px;
+  background:var(--surface-2);color:var(--text-2);display:inline-flex;align-items:center;gap:7px;
+  white-space:nowrap;transition:.18s;
+}
+.btn:hover{background:var(--surface-3);color:var(--text)}
+.btn.primary{background:var(--accent-grad);color:#fff;box-shadow:var(--sh)}
+.btn.primary:hover{color:#fff;box-shadow:var(--sh-lg);transform:translateY(-1px)}
+.btn.ghost{background:transparent;border-color:var(--border-2);color:var(--text-2)}
+.btn.ghost:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-soft)}
+
+.scrim{position:fixed;inset:0;z-index:65;background:rgba(8,13,26,.42);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .3s}
+.scrim.show{opacity:1;pointer-events:auto}
+
+.modal-mask{
+  position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;padding:20px;
+  background:rgba(8,13,26,.5);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+}
+.modal-mask.show{display:flex}
+.modal{
+  width:100%;max-width:540px;max-height:90vh;overflow:auto;background:var(--surface);
+  border:1px solid var(--border);border-radius:20px;box-shadow:var(--sh-lg);animation:pop .24s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes pop{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:19px 22px 12px}
+.modal-head h3{font-size:15.5px;font-weight:750;display:flex;align-items:center;gap:9px}
+.modal-body{padding:0 22px 6px;display:flex;flex-direction:column;gap:14px}
+.fld{display:flex;flex-direction:column;gap:6px}
+.fld>span{font-size:12px;font-weight:650;color:var(--text-2)}
+.fld>span em{font-style:normal;color:var(--muted);font-weight:500}
+.fld input{
+  font-family:ui-monospace,Consolas,monospace;font-size:13px;width:100%;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:11px 13px;color:var(--text);
+  outline:none;transition:.18s;
+}
+.fld input:focus{border-color:var(--accent);background:var(--surface);box-shadow:var(--ring)}
+.row2{display:flex;gap:12px}
+.row2 .fld{flex:1}
+.modal-status{
+  font-size:12px;line-height:1.65;color:var(--muted);white-space:pre-wrap;word-break:break-word;
+  background:var(--surface-2);border:1px dashed var(--border-2);border-radius:11px;padding:11px 13px;
+}
+.modal-status.ok{color:var(--ok);border-style:solid;border-color:rgba(16,163,127,.35);background:rgba(16,163,127,.07)}
+.modal-status.err{color:var(--danger);border-style:solid;border-color:rgba(229,72,77,.35);background:rgba(229,72,77,.07)}
+.modal-foot{display:flex;align-items:center;gap:9px;padding:14px 22px 20px;flex-wrap:wrap}
+.modal-foot .spacer{flex:1}
+.modal-note{font-size:11.5px;color:var(--muted);line-height:1.7;padding:0 22px 18px;border-top:1px solid var(--border);margin-top:6px}
+.modal-note b{color:var(--text-2)}
+
+/* ---- v7 云端 / 本地 双模式设置面板 ---- */
+.mode-seg{display:flex;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:13px;padding:5px}
+.mode-seg button{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:inherit;
+  font-size:13px;font-weight:700;color:var(--text-2);background:transparent;border:0;border-radius:9px;
+  padding:9px 4px;cursor:pointer;transition:.18s;
+}
+.mode-seg button em{font-style:normal;font-size:10.5px;font-weight:500;color:var(--muted);letter-spacing:0}
+.mode-seg button:hover{color:var(--text)}
+.mode-seg button.on{background:var(--surface);color:var(--accent);box-shadow:var(--sh-sm)}
+.mode-seg button.on em{color:var(--accent);opacity:.7}
+.pane{display:flex;flex-direction:column;gap:12px}
+.pane[hidden]{display:none}
+.fld select{
+  font-family:inherit;font-size:13px;font-weight:600;width:100%;background-color:var(--surface-2);
+  border:1px solid var(--border);border-radius:11px;padding:11px 34px 11px 13px;color:var(--text);
+  outline:none;transition:.18s;cursor:pointer;appearance:none;-webkit-appearance:none;
+  background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);
+  background-position:calc(100% - 17px) 50%,calc(100% - 12px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+}
+.fld select:focus{border-color:var(--accent);background-color:var(--surface);box-shadow:var(--ring)}
+.prov-hint{
+  font-size:11.5px;line-height:1.7;color:var(--muted);background:var(--surface-2);
+  border-radius:10px;padding:9px 11px;border-left:3px solid var(--accent);
+}
+.prov-hint b{color:var(--text-2);font-weight:700}
+.prov-hint a{color:var(--accent);font-weight:700;text-decoration:none}
+.prov-hint a:hover{text-decoration:underline}
+.prov-hint .tag{
+  display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;
+  background:var(--accent-soft);color:var(--accent);margin-right:6px;
+}
+.prov-hint .tag.warn{background:rgba(229,72,77,.12);color:var(--danger)}
+.free-guide{font-size:11.5px;color:var(--muted);line-height:1.7}
+.free-guide summary{cursor:pointer;font-weight:700;color:var(--text-2);padding:3px 0;list-style:none}
+.free-guide summary::-webkit-details-marker{display:none}
+.free-guide summary::before{content:"▸ ";color:var(--accent)}
+.free-guide[open] summary::before{content:"▾ "}
+.free-guide table{width:100%;border-collapse:collapse;margin-top:7px;font-size:11px}
+.free-guide th,.free-guide td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--border);vertical-align:top}
+.free-guide th{color:var(--text-2);font-weight:700;font-size:10.5px}
+
+/* 滚动条 */
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-2);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:content-box}
+
+/* =================================================================
+   响应式：≤900px 切为「顶部精简 + 底部角色导航」
+   ================================================================= */
+.rail-mobile-only{display:none}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .rail{
+    position:fixed;left:0;right:0;bottom:0;z-index:60;height:auto;flex-direction:row;
+    align-items:center;gap:4px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+    border-right:none;border-top:1px solid var(--border);background:var(--surface);
+    box-shadow:0 -4px 20px rgba(16,24,39,.07);
+  }
+  /* 抽屉打开时，底部导航降低层级避免遮挡抽屉底部操作 */
+  body.drawer-open .rail{z-index:55}
+  .brand,.rail-label,.rail-foot{display:none}
+  .roles{flex-direction:row;gap:2px;overflow:visible;width:100%}
+  .role{flex:1;flex-direction:column;gap:3px;padding:7px 2px;border-radius:12px;align-items:center}
+  .role-ico{width:30px;height:30px;font-size:15px;border-radius:10px}
+  .role-info{flex:none;width:100%;text-align:center}
+  .role-info b{font-size:10.5px;font-weight:650;white-space:nowrap}
+  .role-info i{display:none}
+  .role.active::before{display:none}
+  .role.active{background:transparent}
+  .role.active .role-info b{color:var(--c,var(--accent))}
+  .rail-mobile-only{display:flex}
+  .stage{padding-bottom:76px}
+  .stage-head{padding:12px 16px;gap:10px}
+  .head-meta h1{font-size:15px}
+  .ibtn span.txt{display:none}
+  .ibtn{padding:9px 11px}
+  .chat{padding:18px 15px 6px;gap:18px}
+  .msg{max-width:94%}
+  .composer{padding:12px 15px 16px}
+  .hint{display:none}
+  .jump{bottom:8px}
+}
+@media (max-width:560px){
+  .welcome-card{padding:19px 17px}
+  .welcome-card h2{font-size:17px}
+  .ex-grid{grid-template-columns:1fr}
+  .bubble{font-size:14.2px;padding:12px 15px}
+  .msg-ava{width:29px;height:29px;font-size:14px}
+  .head-meta p{display:none}
+  .row2{flex-direction:column}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* =================================================================
+   系统深色：未显式设置 data-theme 时跟随 prefers-color-scheme
+   ================================================================= */
+@media (prefers-color-scheme: dark){
+  body:not([data-theme="light"]){
+    --bg:#0a0f1e;
+    --surface:#141b2d;
+    --surface-2:#1c2540;
+    --surface-3:#243050;
+    --text:#e9eefb;
+    --text-2:#9daccb;
+    --muted:#6d7c9e;
+    --border:#232e4b;
+    --border-2:#2f3d61;
+    --danger:#ff6b6f;
+    --ok:#2bd4a6;
+    --sh-sm:0 1px 2px rgba(0,0,0,.4);
+    --sh:0 6px 20px rgba(0,0,0,.36);
+    --sh-lg:0 24px 56px rgba(0,0,0,.55);
+    --code-bg:#0d1526; --code-head:#16203a;
+    --c-kw:#c4b5fd; --c-str:#86efac; --c-com:#64748b; --c-num:#fbbf24; --c-fn:#7dd3fc;
+    --demo:#f0c674; --demo-bg:#2a2113; --demo-bd:#4d3c1d; --demo-ink:#f5d99a;
+    --insight:#b9b3f5; --insight-bg:#1e1b3a; --insight-bd:#3c3570;
+  }
+}
+
+/* =================================================================
+   平板断点：901–1120px 收窄侧栏，保证阅读区宽度
+   ================================================================= */
+@media (min-width:901px) and (max-width:1120px){
+  :root{--rail-w:230px;--read-w:100%}
+  .role-info i{display:none}
+  .chat,.composer{padding-left:24px;padding-right:24px}
+}
+
+/* =================================================================
+   无障碍：键盘焦点环
+   ================================================================= */
+:focus{outline:none}
+:focus-visible{
+  outline:2px solid var(--accent);outline-offset:2px;border-radius:10px;
+}
+.input-wrap:focus-within{outline:none}
+
+/* =================================================================
+   Toast 通知
+   ================================================================= */
+.toasts{
+  position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:200;
+  display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;
+}
+.toast{
+  display:flex;align-items:center;gap:8px;max-width:min(520px,90vw);
+  padding:10px 16px;border-radius:12px;font-size:13px;font-weight:600;
+  background:var(--surface);color:var(--text);border:1px solid var(--border);
+  box-shadow:var(--sh-lg);pointer-events:auto;cursor:pointer;
+  animation:toastIn .26s cubic-bezier(.2,.8,.3,1);
+}
+.toast.bye{animation:toastOut .22s forwards}
+@keyframes toastIn{from{opacity:0;transform:translateY(-12px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateY(-10px) scale(.97)}}
+.toast .t-dot{width:8px;height:8px;flex:none;border-radius:50%;background:var(--accent)}
+.toast.ok .t-dot{background:var(--ok)}
+.toast.err .t-dot{background:var(--danger)}
+
+/* =================================================================
+   生成统计 + 上下文用量
+   ================================================================= */
+.msg-meta{
+  font-size:10.5px;color:var(--muted);margin-top:5px;letter-spacing:.2px;
+  display:flex;gap:10px;flex-wrap:wrap;
+}
+.ctx-ind{font-weight:600}
+.ctx-ind.hot{color:var(--danger)}
+
+/* =================================================================
+   快捷键帮助面板
+   ================================================================= */
+.kbd-mask{
+  position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;padding:20px;
+  background:rgba(8,13,26,.5);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+}
+.kbd-mask.show{display:flex}
+.kbd-panel{
+  width:100%;max-width:400px;background:var(--surface);border:1px solid var(--border);
+  border-radius:18px;box-shadow:var(--sh-lg);padding:20px 22px;animation:pop .24s cubic-bezier(.2,.8,.3,1);
+}
+.kbd-panel h3{font-size:15px;font-weight:750;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.kbd-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;font-size:13px;color:var(--text-2);border-bottom:1px dashed var(--border)}
+.kbd-row:last-of-type{border-bottom:none}
+.kbd-row kbd{
+  font-family:ui-monospace,Consolas,monospace;font-size:11px;font-weight:700;
+  background:var(--surface-2);border:1px solid var(--border-2);border-bottom-width:2px;
+  border-radius:7px;padding:3px 8px;white-space:nowrap;color:var(--text);
+}
+
+/* =================================================================
+   v5 新增 ①：演示模式（无本地服务也能完整演示）
+   ================================================================= */
+.demo-flag{
+  display:none;align-items:center;gap:4px;padding:4px 9px;border-radius:8px;flex:none;
+  font-size:10.5px;font-weight:700;letter-spacing:.4px;
+  background:var(--demo-bg);color:var(--demo-ink);border:1px solid var(--demo-bd);
+}
+body.demo .demo-flag{display:inline-flex}
+.status.demo .dot{background:#d9a441;box-shadow:0 0 0 3px rgba(217,164,65,.2)}
+.demo-banner{
+  display:flex;align-items:flex-start;gap:11px;padding:13px 16px;border-radius:15px;
+  background:var(--demo-bg);border:1px dashed var(--demo-bd);color:var(--demo-ink);
+  font-size:12.8px;line-height:1.68;animation:rise .4s both;
+}
+.demo-banner .db-ico{flex:none;font-size:17px;line-height:1.4}
+.demo-banner .db-body{flex:1;min-width:0}
+.demo-banner .db-body b{color:var(--demo-ink);font-weight:750;display:block;margin-bottom:3px;font-size:13px}
+.demo-banner .db-act{
+  flex:none;cursor:pointer;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:10px;
+  border:1px solid var(--demo-bd);background:var(--surface);color:var(--demo-ink);transition:.18s;white-space:nowrap;
+}
+.demo-banner .db-act:hover{background:var(--demo-ink);color:var(--demo-bg);border-color:var(--demo-ink)}
+.demo-banner .db-x{flex:none;border:none;background:transparent;color:var(--demo-ink);opacity:.6;cursor:pointer;font-size:13px;padding:0 2px}
+.demo-banner .db-x:hover{opacity:1}
+
+/* =================================================================
+   v5 新增 ②：跨角色记忆洞察
+   ================================================================= */
+.insight{
+  display:flex;gap:11px;align-items:flex-start;padding:13px 16px;border-radius:15px;
+  background:var(--insight-bg);border:1px solid var(--insight-bd);animation:rise .4s both;
+}
+.insight .in-ico{flex:none;font-size:17px;line-height:1.4}
+.insight .in-body{flex:1;min-width:0;font-size:13px;line-height:1.68;color:var(--text-2)}
+.insight .in-body b{display:block;margin-bottom:4px;font-size:12.5px;font-weight:750;color:var(--insight);letter-spacing:.2px}
+.insight .in-body em{font-style:normal;color:var(--text);font-weight:650}
+.insight .in-x{flex:none;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:13px;line-height:1.4;padding:0 2px}
+.insight .in-x:hover{color:var(--danger)}
+
+/* =================================================================
+   v5 新增 ③：高风险角色免责条 + 危机干预卡
+   ================================================================= */
+.notice-bar{
+  display:none;align-items:flex-start;gap:8px;margin-bottom:9px;padding:9px 13px;
+  border-radius:12px;background:var(--surface-2);border:1px solid var(--border);
+  font-size:11.5px;line-height:1.6;color:var(--muted);
+}
+.notice-bar.show{display:flex}
+.notice-bar .nb-ico{flex:none;font-size:12px;line-height:1.55}
+.notice-bar.risk{border-color:rgba(229,72,77,.3);background:rgba(229,72,77,.06)}
+.notice-bar b{color:var(--text-2);font-weight:700}
+.notice-bar.risk b{color:var(--danger)}
+.crisis{
+  margin-top:12px;border:1px solid rgba(229,72,77,.35);border-radius:13px;overflow:hidden;
+  background:rgba(229,72,77,.06);
+}
+.crisis .cr-h{
+  display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;font-weight:750;
+  color:var(--danger);border-bottom:1px solid rgba(229,72,77,.22);background:rgba(229,72,77,.06);
+}
+.crisis .cr-b{padding:12px 15px;font-size:12.8px;line-height:1.72;color:var(--text-2)}
+.crisis .cr-b b{color:var(--text)}
+.crisis ul{margin:8px 0 0 2px;padding-left:17px}
+.crisis li{margin:5px 0;font-size:12.6px}
+
+/* =================================================================
+   v5 新增 ④：画像可视化卡片
+   ================================================================= */
+.pf-scroll{flex:1;min-height:0;overflow-y:auto;padding:0 20px 14px;display:flex;flex-direction:column;gap:11px}
+.pf-meter{background:var(--surface-2);border-radius:15px;padding:15px 17px;flex:none}
+.pf-meter .pf-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.pf-meter .pf-top b{font-size:13.5px;font-weight:750}
+.pf-meter .pf-top span{font-family:ui-monospace,Consolas,monospace;font-size:13.5px;font-weight:700;color:var(--accent)}
+.pf-bar{height:8px;border-radius:99px;background:var(--surface-3);margin-top:10px;overflow:hidden}
+.pf-bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--accent-grad);transition:width .45s cubic-bezier(.3,.8,.3,1)}
+.pf-meter p{font-size:11.5px;color:var(--muted);line-height:1.62;margin-top:9px}
+.pf-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:13px 15px;flex:none}
+.pf-card.empty{opacity:.6;border-style:dashed}
+.pf-card .pf-h{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:9px}
+.pf-card .pf-h .pf-ico{width:26px;height:26px;flex:none;border-radius:9px;display:grid;place-items:center;font-size:13px;background:var(--surface-2)}
+.pf-card .pf-h em{font-style:normal;font-weight:600;font-size:10.5px;color:var(--muted);margin-left:auto;font-family:ui-monospace,Consolas,monospace}
+.pf-tags{display:flex;flex-wrap:wrap;gap:6px}
+.pf-tag{
+  font-size:11.8px;line-height:1.55;padding:4px 9px;border-radius:8px;max-width:100%;
+  background:var(--accent-soft);color:var(--text-2);overflow-wrap:anywhere;
+}
+.pf-tag b{color:var(--accent);font-weight:700;margin-right:4px}
+.pf-none{font-size:11.5px;color:var(--muted);line-height:1.6}
+.pf-adv{border-top:1px dashed var(--border);padding-top:10px;flex:none}
+.pf-adv summary{cursor:pointer;font-size:12px;font-weight:650;color:var(--muted);list-style:none;user-select:none;padding:4px 0}
+.pf-adv summary::-webkit-details-marker{display:none}
+.pf-adv summary::before{content:"▸";display:inline-block;margin-right:7px;transition:.18s}
+.pf-adv[open] summary::before{transform:rotate(90deg)}
+.pf-adv summary:hover{color:var(--accent)}
+.pf-adv textarea{
+  width:100%;height:195px;margin-top:9px;padding:12px;resize:vertical;outline:none;display:block;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:12px;color:var(--text);
+  font-family:ui-monospace,Consolas,monospace;font-size:11.5px;line-height:1.6;
+}
+.pf-adv textarea:focus{border-color:var(--accent);background:var(--surface);box-shadow:var(--ring)}
+.pf-adv .btn{width:100%;justify-content:center;margin-top:9px}
+
+/* 首次使用同意弹窗 */
+.consent-list{display:flex;flex-direction:column;gap:10px}
+.consent-item{display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.68;color:var(--text-2)}
+.consent-item .ci-dot{flex:none;width:20px;height:20px;border-radius:7px;display:grid;place-items:center;font-size:11px;background:var(--surface-2);margin-top:2px}
+.consent-item b{color:var(--text);font-weight:700}
+
+/* =================================================================
+   语音助手：右上角开关 + 全屏语音通话层（v6 合并自全新UI设计(6)）
+   ================================================================= */
+.voice-toggle.on{background:var(--accent);color:#fff;border-color:transparent}
+
+#voiceOverlay{position:fixed;inset:0;z-index:210;display:none;flex-direction:column;
+  background:var(--bg);color:var(--text)}
+#voiceOverlay.show{display:flex;animation:voFade .22s ease}
+@keyframes voFade{from{opacity:0}to{opacity:1}}
+
+.vo-head{display:flex;align-items:center;gap:12px;padding:14px 18px;
+  border-bottom:1px solid var(--border);flex-wrap:wrap}
+.vo-title{display:flex;align-items:center;gap:10px;font-weight:700;font-size:15px;flex:none}
+.vo-title .vo-ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  font-size:18px;background:var(--accent-grad);color:#fff;flex:none}
+.vo-chips{display:flex;gap:7px;flex-wrap:wrap;margin-left:2px;overflow-x:auto;max-width:100%}
+.vo-chip{border:1px solid var(--border-2);background:var(--surface);color:var(--text-2);
+  border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;transition:.15s;white-space:nowrap}
+.vo-chip:hover{border-color:var(--accent);color:var(--text)}
+.vo-chip.active{background:var(--accent-grad);color:#fff;border-color:transparent}
+.vo-hangup{margin-left:auto;display:flex;align-items:center;gap:6px;border:none;cursor:pointer;
+  background:var(--danger);color:#fff;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600}
+.vo-hangup:active{transform:scale(.96)}
+
+.vo-stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:24px;padding:20px;min-height:0;overflow-y:auto}
+.vo-orb{position:relative;width:150px;height:150px;border-radius:50%;display:grid;place-items:center;
+  background:var(--accent-grad);box-shadow:0 18px 50px -12px var(--accent);flex:none;transition:.2s}
+.vo-orb .vo-orb-in{font-size:56px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.18))}
+.vo-orb::before,.vo-orb::after{content:"";position:absolute;inset:0;border-radius:50%;
+  border:2px solid var(--accent);opacity:0;pointer-events:none}
+.vo-orb.listening::before{animation:voPulse 1.4s ease-out infinite}
+.vo-orb.speaking::after{animation:voPulse 1.1s ease-out infinite}
+.vo-orb.thinking{animation:voGlow 1.6s ease-in-out infinite}
+@keyframes voPulse{0%{transform:scale(1);opacity:.55}100%{transform:scale(1.75);opacity:0}}
+@keyframes voGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+
+.vo-sub{max-width:660px;width:100%;max-height:min(34vh,220px);overflow:auto;text-align:center;
+  font-size:15px;line-height:1.75;color:var(--text-2);padding:0 10px}
+.vo-sub .v-you{color:var(--text);font-weight:600}
+.vo-sub .v-you::before{content:"你：";color:var(--muted);font-weight:400}
+.vo-status{font-size:13.5px;color:var(--muted);min-height:20px;text-align:center}
+.vo-status.listening,.vo-status.speaking{color:var(--accent);font-weight:600}
+.vo-status.thinking{color:var(--text-2)}
+.vo-status.err{color:var(--danger)}
+
+.vo-foot{display:flex;flex-direction:column;align-items:center;gap:16px;
+  padding:18px 18px calc(18px + env(safe-area-inset-bottom))}
+.vo-gender{display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--border);
+  border-radius:999px;padding:4px}
+.v-gender{border:none;background:transparent;color:var(--text-2);cursor:pointer;
+  border-radius:999px;padding:7px 18px;font-size:13px;transition:.15s}
+.v-gender.active{background:var(--surface);color:var(--accent);font-weight:700;box-shadow:var(--sh-sm)}
+.vo-mic{width:78px;height:78px;border-radius:50%;border:none;cursor:pointer;background:var(--accent-grad);
+  color:#fff;display:grid;place-items:center;font-size:30px;
+  box-shadow:0 14px 34px -8px var(--accent);transition:.15s}
+.vo-mic:active{transform:scale(.94)}
+.vo-mic.on{background:var(--danger);animation:voPulse2 1.2s infinite}
+.vo-mic.disabled{opacity:.45;cursor:not-allowed}
+@keyframes voPulse2{0%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}70%{box-shadow:0 0 0 18px rgba(229,72,77,0)}100%{box-shadow:0 0 0 0 rgba(229,72,77,0)}}
+.vo-tip{font-size:11.5px;color:var(--muted)}
+@media(max-width:900px){
+  .vo-title .txt{display:none}
+  .vo-orb{width:126px;height:126px}
+  .vo-orb .vo-orb-in{font-size:46px}
+  .vo-chips{flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .vo-hangup{padding:11px 18px}
+  .v-gender{padding:9px 20px}
+}
+</style>
+</head>
+<body data-role="module1">
+
+<div class="app">
+  <!-- ============ 左侧：角色导航 ============ -->
+  <nav class="rail">
+    <div class="brand">
+      <div class="brand-mark">🎓</div>
+      <div class="brand-text"><b>AI 学习伙伴</b><i>本地推理 · 它真的记得你</i></div>
+    </div>
+    <div class="rail-label">会话</div>
+    <div class="sessions" id="sessions"></div>
+    <button class="rail-btn new-sess" id="newSessBtn" type="button"><span>＋</span>新建会话</button>
+    <div class="rail-label">选择模块</div>
+    <div class="roles" id="roles"></div>
+    <div class="rail-foot">
+      <button class="rail-btn" id="profileBtn"><span>🧬</span>学生画像</button>
+      <button class="rail-btn" id="setBtn"><span>⚙</span>AI 设置</button>
+      <div class="status" id="connTip" title="点击重新检测"><span class="dot"></span><span class="txt">待检测</span></div>
+    </div>
+  </nav>
+
+  <!-- ============ 中间：主舞台 ============ -->
+  <main class="stage">
+    <header class="stage-head">
+      <div class="head-ico" id="headIco">📚</div>
+      <div class="head-meta">
+        <h1 id="headName">学科教师</h1>
+        <p id="headDesc">高等数学 · C / Python / Java</p>
+      </div>
+      <span class="demo-flag">演示模式</span>
+      <div class="head-acts">
+        <div class="mode-switch" id="modeSwitch" role="tablist" aria-label="助手模式">
+          <button type="button" class="mode-opt active" data-mode="text" title="文字助手（打字对话）" aria-label="文字助手"><span>💬</span>文字助手</button>
+          <button type="button" class="mode-opt" data-mode="voice" title="语音助手（语音通话）" aria-label="语音助手"><span>🎙</span>语音助手</button>
+        </div>
+        <button class="ibtn" id="profileBtnT" title="学生画像" aria-label="打开学生画像">🧬<span class="txt">画像</span></button>
+        <button class="ibtn" id="clearBtn" title="清空当前对话" aria-label="清空当前对话">🗑<span class="txt">清空</span></button>
+        <button class="ibtn" id="themeBtn" title="切换深浅色" aria-label="切换深浅色主题">🌙</button>
+      </div>
+    </header>
+
+    <div class="chat" id="chat" role="log" aria-live="polite" aria-label="对话消息列表"></div>
+    <button class="jump" id="jumpBtn">↓ 回到最新</button>
+
+    <div class="composer">
+      <div class="chips" id="chips"></div>
+      <div class="att-bar" id="attBar"></div>
+      <div class="notice-bar" id="noticeBar"></div>
+      <div class="input-wrap">
+        <span class="drag-hint">松手即可添加为附件 📎</span>
+        <!-- 移动端兼容：用 label 包裹 button + input，避免 hidden 导致部分浏览器 .click() 不弹选择器 -->
+        <label class="cbtn" id="attBtnLabel" title="添加文件 / 图片" aria-label="添加文件或图片">📎
+          <input type="file" id="fileInput" multiple tabindex="-1"
+            accept="image/*,.txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.c,.h,.cpp,.py,.java,.js,.ts,.html,.css,.sql,.sh,.pdf,.docx,.xlsx"
+            style="position:absolute;opacity:0;width:1px;height:1px;padding:0;margin:0;border:0;clip:rect(0,0,0,0);overflow:hidden">
+        </label>
+        <textarea id="input" rows="1" placeholder="向学科教师提问…"></textarea>
+        <button class="cbtn" id="micBtn" title="语音输入" aria-label="语音输入">🎤</button>
+        <button id="sendBtn" title="发送" aria-label="发送消息">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <div class="hint" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+        <span style="text-align:left">Enter 发送 · Shift+Enter 换行 · Shift+↑ 回填上一条 · 📎 支持文件/图片/PDF/Word/Excel · 按 <b>?</b> 查看快捷键</span>
+        <span class="ctx-ind" id="ctxInfo">上下文 0/40 条</span>
+      </div>
+    </div>
+
+    <!-- 图片放大 -->
+    <div class="img-mask" id="imgMask"><img id="imgMaskImg" alt="图片预览"></div>
+  </main>
+</div>
+
+<!-- ============ 右侧抽屉：学生画像 ============ -->
+<aside class="drawer" id="drawer">
+  <div class="drawer-head">
+    <h3>🧬 它眼中的你</h3>
+    <div style="display:flex;gap:7px">
+      <button class="btn ghost" id="clearProfileBtn" style="font-size:11px;padding:6px 10px">清空</button>
+      <button class="btn ghost" id="drawerClose" style="padding:6px 10px">✕</button>
+    </div>
+  </div>
+  <div class="drawer-hint">每次对话，模型都会把新了解到的信息自动沉淀到这里 —— 所以切换角色时，它依然记得你。仅存于本机 localStorage，绝不上传。</div>
+  <div class="pf-scroll">
+    <div class="pf-meter">
+      <div class="pf-top"><b>画像完整度</b><span id="pfPct">0%</span></div>
+      <div class="pf-bar"><i id="pfBar"></i></div>
+      <p id="pfTip"></p>
+    </div>
+    <div id="pfCards"></div>
+    <details class="pf-adv">
+      <summary>高级编辑（JSON 原始数据）</summary>
+      <textarea id="profileTa" spellcheck="false"></textarea>
+      <button class="btn primary" id="saveProfileBtn">保存画像修改</button>
+    </details>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<!-- ============ Toast 通知 ============ -->
+<div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+
+<!-- ============ 快捷键帮助面板 ============ -->
+<div class="kbd-mask" id="kbdMask">
+  <div class="kbd-panel" role="dialog" aria-label="键盘快捷键">
+    <h3>⌨ 键盘快捷键</h3>
+    <div class="kbd-row"><span>发送消息</span><kbd>Enter</kbd></div>
+    <div class="kbd-row"><span>换行</span><kbd>Shift + Enter</kbd></div>
+    <div class="kbd-row"><span>回填上一条提问（编辑后重发）</span><kbd>Shift + ↑</kbd></div>
+    <div class="kbd-row"><span>聚焦输入框</span><kbd>/</kbd></div>
+    <div class="kbd-row"><span>打开 AI 设置</span><kbd>Ctrl / ⌘ + K</kbd></div>
+    <div class="kbd-row"><span>切换深浅色</span><kbd>Ctrl / ⌘ + J</kbd></div>
+    <div class="kbd-row"><span>关闭弹窗 / 抽屉</span><kbd>Esc</kbd></div>
+    <div class="kbd-row"><span>打开本帮助</span><kbd>?</kbd></div>
+    <button class="btn primary" id="kbdClose" style="width:100%;justify-content:center;margin-top:14px">知道了</button>
+  </div>
+</div>
+
+<!-- ============ 首次使用知情同意 ============ -->
+<div class="modal-mask" id="consentMask">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head">
+      <h3>📋 使用前请知悉</h3>
+    </div>
+    <div class="modal-body">
+      <div class="consent-list">
+        <div class="consent-item"><span class="ci-dot">🔒</span><span><b>数据只留在本机。</b>所有对话记录与学生画像仅存于浏览器 localStorage，不经过任何服务器，也不会上传或共享。</span></div>
+        <div class="consent-item"><span class="ci-dot">🩺</span><span><b>不构成专业建议。</b>本工具提供的心理陪伴、健康科普与消费观念引导均由 AI 生成，<b>不构成医疗诊断、心理治疗或投资建议</b>，请勿据此替代专业判断。</span></div>
+        <div class="consent-item"><span class="ci-dot">🚨</span><span><b>危急情况请立即求助。</b>若你或身边的人出现自伤、自杀念头或严重身体不适，请立刻联系学校心理咨询中心、拨打 24 小时心理援助热线，或前往正规医院就诊。</span></div>
+        <div class="consent-item"><span class="ci-dot">🧠</span><span><b>AI 可能出错。</b>尤其是数学推导与代码，请以教材、老师讲解与官方文档为准。</span></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="spacer"></span>
+      <button class="btn primary" id="consentOk">我已阅读并同意</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 高级设置 · v7 云端 / 本地双模式 ============ -->
+<div class="modal-mask" id="modalMask">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>⚙ AI 设置</h3>
+      <button class="btn ghost" id="modalClose" style="padding:6px 10px">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mode-seg" id="modeSeg">
+        <button type="button" data-mode="cloud" class="on">☁️ 云端 AI<em>零部署 · 免费额度</em></button>
+        <button type="button" data-mode="local">💻 本地模型<em>LM Studio / Ollama</em></button>
+      </div>
+
+      <!-- 云端：填一个 Key 就能用，不需要装任何东西 -->
+      <div class="pane" id="cloudPane">
+        <label class="fld"><span>服务商</span><select id="cfgProvider"></select></label>
+        <div class="prov-hint" id="provHint"></div>
+        <label class="fld"><span>API Key <em>（必填 · 只存在本机浏览器）</em></span>
+          <input type="password" id="cfgApiKey" spellcheck="false" autocomplete="off" placeholder="粘贴服务商后台生成的 Key">
+        </label>
+        <label class="fld"><span>接口地址 <em>（跟随服务商自动填好，一般不用改）</em></span>
+          <input type="text" id="cfgApiUrl" spellcheck="false"></label>
+        <label class="fld"><span>模型 ID</span><input type="text" id="cfgModel" spellcheck="false"></label>
+      </div>
+
+      <!-- 本地：LM Studio / Ollama / 任意 OpenAI 兼容服务 -->
+      <div class="pane" id="localPane" hidden>
+        <label class="fld"><span>接口地址 <em>（完整接口 URL）</em></span><input type="text" id="cfgLocalUrl" spellcheck="false"></label>
+        <label class="fld"><span>模型 ID</span><input type="text" id="cfgLocalModel" spellcheck="false"></label>
+        <label class="fld"><span>API Key <em>（本地服务一般留空）</em></span><input type="text" id="cfgLocalKey" spellcheck="false" placeholder="留空则不发送 Authorization 头"></label>
+        <div class="prov-hint">LM Studio 默认 <b>http://localhost:1234/v1/chat/completions</b>；Ollama 默认 <b>http://localhost:11434/v1/chat/completions</b>。跨域被拦时：LM Studio 勾选 <b>Enable CORS</b>，Ollama 用 <b>OLLAMA_ORIGINS=*</b> 启动，并用 <b>python3 -m http.server</b> 打开本页。</div>
+      </div>
+
+      <div class="row2">
+        <label class="fld"><span>temperature</span><input type="text" id="cfgTemp" spellcheck="false"></label>
+        <label class="fld"><span>top_p</span><input type="text" id="cfgTopP" spellcheck="false"></label>
+      </div>
+      <div class="modal-status" id="modalStatus">尚未检测。填好 API Key 后点「测试连接」。</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="cfgDemo" title="不连任何模型，用内置示例回答演示完整流程">🎬 演示模式</button>
+      <button class="btn ghost" id="cfgReset">恢复默认</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" id="cfgTest">🔌 测试连接</button>
+      <button class="btn primary" id="cfgSave">保存并关闭</button>
+    </div>
+    <div class="modal-note">
+      <details class="free-guide">
+        <summary>🎁 免费云端 AI 怎么选（点开对比）</summary>
+        <table>
+          <tr><th>服务商</th><th>免费力度</th><th>浏览器直连</th></tr>
+          <tr><td>硅基流动</td><td>注册送额度 + 常驻免费模型</td><td>✅ 可以</td></tr>
+          <tr><td>阿里百炼</td><td>qwen-flash 每模型 100 万 token</td><td>✅ 可以</td></tr>
+          <tr><td>魔搭 ModelScope</td><td>每日免费调用次数</td><td>✅ 可以</td></tr>
+          <tr><td>智谱 GLM-Flash</td><td>完全免费、中文很强</td><td>❌ 需本地中转</td></tr>
+        </table>
+        <div style="margin-top:7px">「浏览器直连」= 本页可以直接 fetch 该厂商接口（已实测跨域预检）。标 ❌ 的厂商不返回跨域头，需在本地跑一次中转脚本，详见随附的《云端AI接入指南》。</div>
+      </details>
+      <div style="margin-top:8px"><b>单 HTML 离线优先</b> · 配置只写 localStorage，不上传任何服务器 · 「恢复默认」可一键清空 Key</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =================================================================
+   角色定义：每个角色带独立色相，切换时全局强调色跟随流转
+   ================================================================= */
+const ROLES=[
+  {id:"module1",name:"学科教师",short:"教师",desc:"高等数学 · C / Python / Java",icon:"📚",h:243,s:72,l:56},
+  {id:"module2",name:"心理老师",short:"心理",desc:"情绪陪伴 · 压力疏导",icon:"🌿",h:330,s:70,l:58},
+  {id:"module3",name:"生活规划",short:"规划",desc:"课表 · 日程 · 考研规划",icon:"📅",h:174,s:68,l:38},
+  {id:"module4",name:"健康助手",short:"健康",desc:"作息 · 饮食 · 运动",icon:"💚",h:142,s:62,l:38},
+  {id:"module5",name:"理财助手",short:"理财",desc:"生活费 · 消费观念",icon:"💰",h:32,s:88,l:46}
+];
+const roleById=id=>ROLES.find(r=>r.id===id)||ROLES[0];
+
+/* 空状态示例问题：降低启动门槛，符合「不知问什么」的真实场景 */
+const EXAMPLES={
+  module1:[
+    {t:"求极限",q:"求 lim(x→0) (1-cosx)/x^2，请给出不跳步的推导"},
+    {t:"编程概念",q:"讲讲 C 语言里指针的本质，并举例说明 & 和 * 的区别"},
+    {t:"动手练习",q:"用 Python 写一个冒泡排序，逐行解释并指出新手易错点"}
+  ],
+  module2:[
+    {t:"学业压力",q:"最近期末复习压力特别大，晚上总是睡不着，心里很慌"},
+    {t:"人际困扰",q:"和室友闹了矛盾，现在在宿舍很压抑，不知道怎么办"},
+    {t:"自我怀疑",q:"总觉得自己不如身边的同学，做什么都提不起劲"}
+  ],
+  module3:[
+    {t:"备考规划",q:"帮我规划一下期末周两周的复习日程，我每天大概有 6 小时可用"},
+    {t:"方向选择",q:"我在考研和直接就业之间很纠结，该怎么理清思路"},
+    {t:"时间管理",q:"课表之外的碎片时间总是浪费掉，有什么可执行的办法"}
+  ],
+  module4:[
+    {t:"作息问题",q:"经常熬夜到两三点，最近掉头发很严重，该怎么调整"},
+    {t:"久坐不适",q:"每天坐着上课和自习，腰酸背痛，有什么改善建议"},
+    {t:"饮食规律",q:"三餐很不规律，经常靠外卖和零食，怎么吃得健康一点"}
+  ],
+  module5:[
+    {t:"生活费",q:"每个月 2000 生活费总是月中就见底了，帮我看看怎么分配"},
+    {t:"冲动消费",q:"总是忍不住冲动买东西，事后又后悔，怎么控制"},
+    {t:"兼职权衡",q:"想做兼职赚点钱，但怕影响学习，怎么判断该不该去"}
+  ]
+};
+
+/* =================================================================
+   v5 新增：演示模式预置回答
+   —— 无本地服务时也能完整演示「提问 → 流式输出 → 画像自动沉淀」
+   每条回答末尾都带 <<<PROFILE_UPDATE>>>，用来现场演示画像沉淀
+   ================================================================= */
+const DEMO_DELAY=22;   /* 每个流式分片的间隔毫秒 */
+const DEMO_SCRIPTS={
+module1:[
+{k:["极限","lim","cos","导数","积分","微分","级数","连续"],text:`<think>
+题目是 lim(x→0) (1-cosx)/x²。
+直接用洛必达需要两次求导，但更稳妥的是先用倍角公式把 1-cosx 降次。
+1-cosx = 2sin²(x/2)，代回后整理出 sin(x/2)/(x/2) 这个标准极限。
+这样不必依赖洛必达，而且能明确写出"为什么可以这样做"的前提条件。
+需要注意的坑：等价无穷小替换只能在乘除结构中直接替换，加减结构中不能随意替换。
+</think>
+## 结论
+lim(x→0) (1-cosx)/x² = **1/2**
+
+## 一、先判断题型
+这是 0/0 型未定式：x→0 时分子 1-cosx→0，分母 x²→0。
+
+【前置知识】x→0 时成立：
+- sinx ~ x
+- 1-cosx ~ x²/2 ← 本题直接套这条也行，但下面给你不依赖记忆的推导
+
+## 二、不跳步推导
+**第 1 步 · 倍角公式降次**
+由 cos2θ = 1 - 2sin²θ，令 θ = x/2，得
+1 - cosx = 2sin²(x/2)
+
+**第 2 步 · 代回原式**
+(1-cosx)/x² = 2sin²(x/2)/x²
+
+**第 3 步 · 凑标准极限**
+因为 x² = 4·(x/2)²，所以
+2sin²(x/2)/x² = 2sin²(x/2) / [4·(x/2)²] = (1/2)·[sin(x/2)/(x/2)]²
+
+**第 4 步 · 取极限**
+x→0 时 x/2→0，由 lim(t→0) sint/t = 1 得
+[sin(x/2)/(x/2)]² → 1² = 1
+故原式 = (1/2)·1 = **1/2**
+
+## 三、另一种做法（洛必达）
+连续两次洛必达：
+第 1 次 → (sinx)/(2x)，仍是 0/0 型
+第 2 次 → (cosx)/2，x→0 时 → 1/2
+结果一致。【考点】洛必达的适用条件是"求导后的极限存在"，考试时必须写明。
+
+## 四、【易错】与【考点】
+- 【易错1】把 1-cosx 替换成 x²/2 时，必须确认它处在**乘除结构**中。若出现在加减结构（例如 1-cosx+sinx）里直接替换，结论会错。
+- 【易错2】用了两次洛必达，中间一步 (sinx)/(2x) 仍是未定式，不能直接代 x=0 得到 0。
+- 【易错3】答案是 1 还是 1/2？这是本题最高频的粗心失分点。
+- 【考点】属于"等价无穷小 + 重要极限"综合题，是大一期末与考研数学一的高频基础题。
+
+## 五、同类练习
+用同样思路试做：lim(x→0) (1-cos2x)/x²
+进阶：lim(x→0) (x-sinx)/x³ —— 这题不能用等价替换，需把 sinx 泰勒展开到三阶。
+
+<<<PROFILE_UPDATE:{"studyInfo":{"studyProgress":"高等数学第一章：极限与连续","weakSubject":"等价无穷小的适用条件（在加减结构中误用）","examGoal":"期末高数 85+"}}>>>`},
+{k:["指针","编程","代码","python","c语言","c 语言","冒泡","排序","数组","函数","java"],text:`## 先说本质
+C 语言里，**变量是"带地址的盒子"，指针是"装着地址的盒子"**。这一句话能解决 90% 的困惑。
+
+## 一、从内存视角理解
+写下 int a = 10; 时，编译器在内存里划出 4 个字节，假设起始地址是 0x1000：
+
+\`\`\`text
+地址          内容
+0x1000       10        ← 变量 a 本体
+\`\`\`
+
+再写 int *p = &a; 之后：
+
+\`\`\`text
+地址          内容
+0x1000       10        ← 变量 a
+0x2000       0x1000    ← 变量 p（p 装的是 a 的地址）
+\`\`\`
+
+**关键**：p 自身也占内存（64 位系统上是 8 字节），只是它装的内容"恰好是一个地址"。指针不是魔法，它就是一个普通变量。
+
+## 二、& 和 * 的区别
+- &a 读作"取 a 的地址"，结果是一个地址值
+- *p 读作"解引用 p"，结果是 p 指向的那个变量的内容
+
+\`\`\`c
+#include <stdio.h>
+
+int main(void){
+    int a = 10;
+    int *p = &a;      // p 保存 a 的地址
+
+    printf("a 的值   = %d\\n", a);    // 10
+    printf("p 的值   = %p\\n", p);    // 与 &a 完全相同
+    printf("*p 的值  = %d\\n", *p);   // 10  ← 通过地址访问 a
+
+    *p = 20;          // 通过指针修改 a
+    printf("a 现在   = %d\\n", a);    // 20  ← a 被改了
+
+    return 0;
+}
+\`\`\`
+
+**逐行说明**
+- int *p = &a; —— 声明处的 * 表示"p 是指针"，不是解引用
+- printf 里传 p 本身（地址），所以格式符用 %p
+- *p = 20; —— 这里的 * 是解引用运算符，完全等价于 a = 20;
+
+## 三、新手最常踩的三个坑
+- 【易错1】**声明时的 \`*\` 和使用时的 \`*\` 含义不同**。int *p; 里的 * 是类型的一部分；*p = 5; 里的 * 是运算符。初学者最容易在这里绕晕。
+- 【易错2】**野指针**。int *p; 之后立刻写 *p = 5，p 指向的是随机地址，可能直接导致段错误。正确写法是 int *p = NULL;，用之前判空。
+- 【易错3】**指针类型决定访问宽度**。int * 解引用读 4 字节，char * 只读 1 字节。这正是"数组名可以当指针用"背后的原因。
+
+## 四、一句话总结
+**& 是"问住址"，* 是"按住址去取东西"。** 记住这句，大部分指针题都能推。
+
+<<<PROFILE_UPDATE:{"studyInfo":{"studyProgress":"正在学 C 语言指针与内存模型","weakSubject":"指针与数组的关系、野指针的规避"}}>>>`}
+],
+module2:[{k:["压力","睡不着","失眠","焦虑","室友","矛盾","自卑","迷茫","难受","烦"],text:`先接住你的情绪，再一起看看能做点什么。
+
+## 我想先说的是
+期末前睡不着、心里发慌，这不是你"不够坚强"，而是**身体在压力下的正常应激反应**。几乎每个认真对待学业的人都会经历这一段，你没有比别人差。
+
+## 帮你把"慌"拆开看
+你描述的其实是三件不同的事，它们混在一起才显得特别可怕：
+1. **压力源** —— 期末复习量集中
+2. **生理反应** —— 入睡困难、心慌
+3. **认知评价** —— "来不及了"这种灾难化想法
+
+把 1 和 2 分开，"慌"就不再是一个无边的黑洞，而是一张可以逐条处理的清单。
+
+## 今晚就能做的三件小事
+- **把复习清单写出来，而不是记在脑子里**。大脑对"未知的量"会持续分泌焦虑；一旦写下来，它就变成了有限条目。
+- **睡前 40 分钟离开屏幕**，做 4-7-8 呼吸：吸气 4 秒、屏息 7 秒、呼气 8 秒，重复 4 轮。
+- **接受"今晚可能睡不好"**。越要求自己必须睡着，越睡不着；躺下闭眼休息本身就有恢复作用。
+
+## 关于复习节奏
+把剩下的时间切成"块"，每块只定一个**具体到能做完**的目标——比如"做完第三章课后题前 10 题"，而不是"复习第三章"。完成后划掉，划掉的次数比学习时长更能稳住情绪。
+
+## 如果这种情况持续
+如果状态**连续两周以上**没有缓解，或者出现明显食欲下降、对什么都提不起兴趣、早醒后无法再入睡，建议去学校心理咨询中心聊一次。这是对自己负责，不是"有问题"。
+
+⚠️ 重要提示：我仅能提供情绪陪伴，不能替代专业心理咨询。若出现伤害自己的念头，请立刻联系学校心理咨询中心，必要时前往正规精神卫生医疗机构寻求专业帮助。
+
+<<<PROFILE_UPDATE:{"mentalInfo":{"mainPressure":"期末考试复习量集中、时间不够用","moodStatus":"焦虑、入睡困难、心慌","troubleList":["期末复习压力大","夜间失眠","对进度感到恐慌"]},"lifeInfo":{"dailySchedule":"晚间集中复习，作息待细化"}}>>>`}],
+module3:[{k:["规划","日程","课表","考研","考公","就业","时间","备考","安排"],text:`要给你排一份真正能用的日程，我需要先确认几件事——先给一版**框架**，你把信息补给我，我再改成专属版本。
+
+## 请先告诉我三个关键信息
+1. 你的**课表**（哪几天有课、几点到几点）
+2. 期末**考试科目与日期**（哪科先考、哪科最难）
+3. 你每天**真正能拿出的整块时间**（不是"大概 6 小时"，而是"晚上 7 点到 11 点"）
+
+## 先给一版两周框架
+**第 1 周 · 覆盖 + 定位薄弱点**
+- 每天上午：主攻最难的那 1 科（此时精力最好）
+- 每天下午：轮换 2 科，以做题为主，不做题不算复习
+- 每天睡前 20 分钟：只回顾当天错题，不学新东西
+
+**第 2 周 · 真题 + 补漏**
+- 前 4 天：每科至少完整做 1 套真题，严格计时
+- 后 3 天：只做错题重做，不再碰新题
+
+## 三个必须留出的缓冲
+- 每学习 50 分钟休息 10 分钟，用番茄钟执行
+- 每天留 1 小时机动，专门吸收"没做完的部分"
+- 考前一晚不安排任何新内容
+
+## 为什么这份日程没有排满
+我注意到你之前提到期末压力比较大、晚上睡不好。所以这份计划**刻意留了余量**——每天最后 1 小时是缓冲带。如果按满负荷排，你大概率在第 3 天就会放弃，而放弃带来的挫败感比少学两小时更伤。
+
+把课表和考试安排发我，我给你排成带具体时段、可以直接照着执行的版本。
+
+<<<PROFILE_UPDATE:{"lifeInfo":{"futurePlan":"期末备考中，考研/就业方向尚未确定","abilityShortage":"时间管理：碎片时间利用率低","schedule":"课表待补充"},"mentalInfo":{"mainPressure":"期末复习压力"}}>>>`}],
+module4:[{k:["熬夜","掉头发","脱发","腰","颈椎","久坐","饮食","外卖","失眠","作息","健康"],text:`先说结论：熬夜确实是脱发的重要诱因之一，但**它通常不是唯一原因**，我们需要先看清楚有哪些因素叠加在一起。
+
+## 熬夜是怎么影响头发的
+- **激素层面**：长期睡眠不足会升高皮质醇，干扰毛囊生长周期，让更多毛囊提前进入休止期。
+- **头皮层面**：熬夜常伴随头油分泌增加，可能加重脂溢性皮炎，间接影响毛囊。
+- **营养层面**：熬夜的人往往饮食不规律，铁、锌、蛋白质摄入不足会直接影响发质。
+- **行为层面**：熬夜时更容易无意识抓挠、拉扯头发。
+
+## 关于"脱发"的一个关键判断
+每天掉 **50 到 100 根**属于正常新陈代谢。判断是否异常，看两个信号：
+1. 掉的量**明显**比过去多，且持续**超过 2 到 3 个月**
+2. 出现发际线后移、发缝变宽这类**可见变化**
+
+如果只是最近掉得多，很可能属于"休止期脱发"，特点是**可逆**——把诱因去掉，3 到 6 个月通常能恢复。
+
+## 可以立刻开始的调整
+- **固定入睡时间比"睡够 8 小时"更重要**。先把入睡时间往前挪 30 分钟，不要一次提前 2 小时。
+- **睡前 1 小时不碰手机**，蓝光会推迟褪黑素分泌。
+- **早餐保证蛋白质**（鸡蛋、牛奶、豆浆）。熬夜的人早餐质量往往最差。
+- **洗头频率按出油情况定**，油就洗，不必硬撑。
+- 减少高糖饮料与油炸食品，这两类会明显加重头皮出油。
+
+## 什么时候该去医院
+出现以下情况，建议去**皮肤科**做一次毛囊检测，而不是继续自己调整：
+- 成片脱落或出现明显秃斑
+- 头皮红肿、瘙痒、有脓点
+- 伴随月经紊乱、体重明显变化（可能涉及内分泌问题）
+
+⚠️ 提示：我仅为科普参考，不能替代执业医师诊断，该情况建议尽快前往线下医院就诊检查。
+
+<<<PROFILE_UPDATE:{"healthInfo":{"sleepStatus":"经常熬夜到凌晨两三点","discomfortSymptom":["掉发明显增多","久坐后腰酸"],"dietHabit":"三餐不规律，常靠外卖","exercise":"几乎不运动"}}>>>`}],
+module5:[{k:["生活费","消费","花钱","理财","省钱","兼职","存钱","冲动","预算"],text:`2000 元月中就见底，通常不是"花得太多"，而是**钱没有分区**。所有钱躺在一个池子里，前面的开销会无声地吃掉后面的预算。
+
+## 第一步：把 2000 拆成四份
+**1. 固定支出（约 800）**
+三餐、水电、话费、交通。这部分**按周发放**给自己，一周 200，花完就等下周，不要提前预支。
+
+**2. 学习与必要社交（约 300）**
+教材、打印、必要的聚餐。单次超过 100 元的社交，提前一天决定，不要当场拍板。
+
+**3. 弹性消费（约 500）**
+奶茶、零食、衣服、娱乐。这一项**必须按周限额**，它是最容易失控的部分。
+
+**4. 强制储蓄（约 400）**
+发生活费的**当天就转走**，放到不容易随手取到的地方。这笔钱的作用不是攒多少，而是训练"钱并非全部可花"的感觉。
+
+## 针对"月中见底"的三个具体动作
+- **记账只记弹性消费**。固定支出波动很小，记了也没用；弹性消费才是黑洞。
+- **设置 24 小时冷静期**：想买非必需品，先加入购物车，第二天再决定。八成冲动会自己消失。
+- **改成"周额度"支付**：每周一给自己转固定金额，用完为止。这一个动作比任何记账 App 都有效。
+
+## 防坑提醒
+- 任何"先消费后还款"的校园贷、分期产品，一律不碰。
+- 兼职刷单、帮忙走账都属于诈骗，可能牵涉法律责任。
+- 遇到自称客服要求转账的，直接挂断，并联系学校保卫处核实。
+
+最后：我注意到你提到期末压力大、睡不好。**压力大时人更容易情绪化消费**，如果你有这种情况，建议先把弹性消费的周额度压到 400，给情绪留一点余量。
+
+<<<PROFILE_UPDATE:{"financeInfo":{"monthlyLivingCost":"2000 元/月","consumeHabit":"月中即花完，缺少预算分区意识","partTimeSituation":"暂无兼职"},"mentalInfo":{"mainPressure":"期末复习压力（与情绪化消费相关）"}}>>>`}
+]};
+const DEMO_FALLBACK=`当前处于 **演示模式**，为避免给出误导性内容，我只会回答内置的示例问题。
+
+你可以：
+- 点击下方的**示例卡片**，每一条都有完整的演示回答
+- 需要自由提问时，点左下角状态灯 → 「⚙ AI 设置」：选一家**云端免费 AI**（只需填个 Key，不用装东西），或填本地模型接口地址
+
+演示模式想让你看到的三件事：
+1. 回答是**逐字流式输出**的，和真实调用完全一致
+2. 回答末尾会把了解到的信息**自动沉淀进「学生画像」**——点右上角 🧬 就能看到
+3. 切换到**其他角色**，看它是否还记得你刚才说的话
+
+<<<PROFILE_UPDATE:{}>>>`;
+
+/* =================================================================
+   v5 演示模式引擎
+   —— 伪造一个 OpenAI 兼容的 SSE 响应，复用真实流式解析链路，
+      因此「流式输出 / 思考链折叠 / 画像沉淀」表现与真机完全一致
+   ================================================================= */
+let demoMode=false;
+let currentCrisis=false;          /* 本轮用户输入是否命中高危关键词 */
+function isDemo(){ return demoMode; }
+function pickDemoScript(roleId,userText){
+  const list=DEMO_SCRIPTS[roleId]||[];
+  const q=String(userText||"");
+  for(const s of list){ if(s.k.some(k=>q.includes(k))) return s.text; }
+  return DEMO_FALLBACK;
+}
+function makeDemoResponse(roleId,userText){
+  const text=pickDemoScript(roleId,userText);
+  const enc=new TextEncoder();
+  let i=0, first=true;
+  const body=new ReadableStream({
+    async pull(ctrl){
+      if(first){ first=false; await new Promise(r=>setTimeout(r,650)); }   // 模拟真实首 token 延迟，让打字指示器可见
+      if(i>=text.length){
+        ctrl.enqueue(enc.encode("data: [DONE]\n\n"));
+        ctrl.close(); return;
+      }
+      const piece=text.slice(i,i+7); i+=7;
+      ctrl.enqueue(enc.encode("data: "+JSON.stringify({choices:[{delta:{content:piece}}]})+"\n\n"));
+      await new Promise(r=>setTimeout(r,DEMO_DELAY));
+    }
+  });
+  return {
+    ok:true,status:200,
+    headers:{get:k=>String(k).toLowerCase()==="content-type"?"text/event-stream":null},
+    body,
+    json:async()=>({choices:[{message:{content:text}}]})
+  };
+}
+/* 演示用画像：只在用户画像完全为空时写入，绝不覆盖真实数据。
+   刻意留一部分字段为空 —— 这样演示时能看到「完整度随着对话上升」的积累效果 */
+const DEMO_PROFILE={
+  studyInfo:{weakSubject:"",studyProgress:"高等数学第一章：极限与连续",examGoal:""},
+  mentalInfo:{mainPressure:"期末考试复习量集中、时间不够用",moodStatus:"焦虑、入睡困难、心慌",troubleList:["期末复习压力大","夜间失眠"]},
+  lifeInfo:{schedule:"",futurePlan:"",abilityShortage:"碎片时间利用率低",dailySchedule:"晚间集中复习"},
+  healthInfo:{sleepStatus:"经常熬夜到凌晨两三点",dietHabit:"",exercise:"",discomfortSymptom:["掉发明显增多"]},
+  financeInfo:{monthlyLivingCost:"2000 元/月",consumeHabit:"",partTimeSituation:""}
+};
+function seedDemoProfile(){
+  const p=getProfile();
+  const empty=Object.keys(p).every(g=>Object.values(p[g]||{}).every(v=>Array.isArray(v)?v.length===0:!v));
+  if(empty) setProfile(structuredClone(DEMO_PROFILE));
+}
+function setDemo(on,silent){
+  if(on){
+    if(demoMode) return;
+    demoMode=true;
+    document.body.classList.add("demo");
+    seedDemoProfile();
+    connTipEl.className="status demo";
+    connTipEl.querySelector(".txt").textContent="演示模式 · 未连接 AI";
+    connTipEl.title="正在使用内置演示回答。点这里进入「⚙ AI 设置」，可选用云端免费 AI（只填一个 Key）或填本地模型地址。";
+    if(!silent) toast("已进入演示模式 · 无需本地服务即可体验");
+    renderChat(); updateCtx(); renderNotice();
+  }else{
+    if(!demoMode) return;
+    demoMode=false;
+    document.body.classList.remove("demo");
+    renderChat();
+  }
+}
+function prependDemoBanner(){
+  if(!demoMode) return;
+  const el=document.createElement("div");
+  el.className="demo-banner";
+  el.innerHTML='<span class="db-ico">🎬</span>'+
+    '<span class="db-body"><b>演示模式已开启</b>没有检测到可用的 AI 服务，我正在用内置示例回答展示完整流程 —— 回答同样逐字流式输出，并会自动沉淀进学生画像。</span>'+
+    '<button class="db-act">配置 AI</button>'+
+    '<button class="db-x" title="收起" aria-label="收起">✕</button>';
+  el.querySelector(".db-act").onclick=()=>$("setBtn").click();
+  el.querySelector(".db-x").onclick=()=>el.remove();
+  chatEl.insertBefore(el,chatEl.firstChild);
+}
+
+/* =================================================================
+   v5 跨角色记忆洞察
+   —— 切换角色时主动引用画像中已收集的信息，让「它记得我」被看见
+   ================================================================= */
+function buildInsight(roleId){
+  const p=getProfile();
+  const V=(k,f)=>(p[k]||{})[f];
+  const has=(k,f)=>{ const v=V(k,f); return Array.isArray(v)?v.length>0:!!v; };
+  const L=(k,f)=>(V(k,f)||[]).join("、");
+  const F=v=>esc(String(v));
+  const bits=[];
+  if(roleId==="module1"){
+    if(has("studyInfo","studyProgress")) bits.push("你正在学 <em>"+F(V("studyInfo","studyProgress"))+"</em>");
+    if(has("studyInfo","weakSubject")) bits.push("薄弱点在 <em>"+F(V("studyInfo","weakSubject"))+"</em>");
+    if(has("studyInfo","examGoal")) bits.push("目标是 <em>"+F(V("studyInfo","examGoal"))+"</em>");
+    if(has("mentalInfo","moodStatus")) bits.push("另外我记得你最近 <em>"+F(V("mentalInfo","moodStatus"))+"</em>，讲解会放慢一点");
+    if(!bits.length) return null;
+    return {title:"我还记得你的学习情况",body:bits.join("，")+"。"};
+  }
+  if(roleId==="module2"){
+    if(has("mentalInfo","mainPressure")) bits.push("压力主要来自 <em>"+F(V("mentalInfo","mainPressure"))+"</em>");
+    if(has("mentalInfo","moodStatus")) bits.push("当时的状态是 <em>"+F(V("mentalInfo","moodStatus"))+"</em>");
+    if(has("mentalInfo","troubleList")) bits.push("记下的困扰有 <em>"+F(L("mentalInfo","troubleList"))+"</em>");
+    if(has("healthInfo","sleepStatus")) bits.push("睡眠方面 <em>"+F(V("healthInfo","sleepStatus"))+"</em>");
+    if(!bits.length) return null;
+    return {title:"这里还留着上次说的事",body:bits.join("；")+"。不用重新讲一遍，我们可以直接从上次的地方接着聊。"};
+  }
+  if(roleId==="module3"){
+    if(has("lifeInfo","schedule")) bits.push("课表：<em>"+F(V("lifeInfo","schedule"))+"</em>");
+    if(has("lifeInfo","dailySchedule")) bits.push("作息：<em>"+F(V("lifeInfo","dailySchedule"))+"</em>");
+    if(has("lifeInfo","futurePlan")) bits.push("方向：<em>"+F(V("lifeInfo","futurePlan"))+"</em>");
+    if(has("lifeInfo","abilityShortage")) bits.push("待补强：<em>"+F(V("lifeInfo","abilityShortage"))+"</em>");
+    if(has("mentalInfo","mainPressure")) bits.push("压力：<em>"+F(V("mentalInfo","mainPressure"))+"</em>");
+    if(!bits.length) return null;
+    return {title:"排计划前，我已经看过你的档案",body:bits.join("；")+"。所以下面的方案不会给你套通用模板。"};
+  }
+  if(roleId==="module4"){
+    if(has("healthInfo","sleepStatus")) bits.push("作息：<em>"+F(V("healthInfo","sleepStatus"))+"</em>");
+    if(has("healthInfo","dietHabit")) bits.push("饮食：<em>"+F(V("healthInfo","dietHabit"))+"</em>");
+    if(has("healthInfo","exercise")) bits.push("运动：<em>"+F(V("healthInfo","exercise"))+"</em>");
+    if(has("healthInfo","discomfortSymptom")) bits.push("不适：<em>"+F(L("healthInfo","discomfortSymptom"))+"</em>");
+    if(!bits.length) return null;
+    return {title:"结合你之前说过的身体状况",body:bits.join("；")+"。下面的科普会围绕这些展开，而不是泛泛而谈。"};
+  }
+  if(roleId==="module5"){
+    if(has("financeInfo","monthlyLivingCost")) bits.push("月生活费：<em>"+F(V("financeInfo","monthlyLivingCost"))+"</em>");
+    if(has("financeInfo","consumeHabit")) bits.push("消费习惯：<em>"+F(V("financeInfo","consumeHabit"))+"</em>");
+    if(has("financeInfo","partTimeSituation")) bits.push("兼职情况：<em>"+F(V("financeInfo","partTimeSituation"))+"</em>");
+    if(has("mentalInfo","mainPressure")) bits.push("最近压力：<em>"+F(V("mentalInfo","mainPressure"))+"</em>");
+    if(!bits.length) return null;
+    return {title:"你的消费档案我已经读到了",body:bits.join("；")+"。下面按你的实际情况给建议，再说一次：本模块绝不推荐任何投资产品。"};
+  }
+  return null;
+}
+function renderInsight(){
+  const info=buildInsight(current);
+  if(!info) return;
+  const el=document.createElement("div");
+  el.className="insight";
+  el.innerHTML='<span class="in-ico">🔗</span><span class="in-body"><b>'+esc(info.title)+'</b>'+info.body+
+    '</span><button class="in-x" title="收起" aria-label="收起">✕</button>';
+  el.querySelector(".in-x").onclick=()=>el.remove();
+  chatEl.insertBefore(el,chatEl.firstChild);
+}
+
+/* =================================================================
+   v5 安全合规层：常驻免责条 + 危机干预卡
+   ================================================================= */
+const RISK_NOTICE={
+  module2:"<b>心理陪伴不等同于心理咨询。</b>我不做诊断、不评估病情。若出现伤害自己的念头，请立即联系学校心理咨询中心或拨打 24 小时心理援助热线。",
+  module4:"<b>健康科普不等同于医疗建议。</b>我不做诊断、不开药。症状持续或加重时，请尽快前往线下医院就诊。",
+  module5:"<b>本模块只谈消费观念。</b>绝不推荐任何股票、基金、理财产品，也不做任何收益预测。"
+};
+function renderNotice(){
+  const bar=$("noticeBar"); if(!bar) return;
+  const n=RISK_NOTICE[current];
+  if(!n){ bar.className="notice-bar"; bar.innerHTML=""; return; }
+  bar.className="notice-bar show risk";
+  bar.innerHTML='<span class="nb-ico">🛡️</span><span>'+n+'</span>';
+}
+const CRISIS_RE=/(自杀|自残|轻生|不想活|活不下去|结束生命|割腕|跳楼|想死|死了算了|伤害自己)/;
+function crisisCard(){
+  return '<div class="crisis">'+
+    '<div class="cr-h">🚨 请现在就把电话拨出去</div>'+
+    '<div class="cr-b">你刚才说的内容让我很担心。<b>这不是你一个人扛得过去的事，也不需要一个人扛。</b>请立刻做一件事 —— 把下面任意一个号码拨出去：'+
+      '<ul>'+
+        '<li><b>学校心理咨询中心</b> —— 最快、最近，学生事务中心通常可以转接</li>'+
+        '<li><b>全国 24 小时心理援助热线：12356</b></li>'+
+        '<li><b>希望 24 热线：400-161-9995</b></li>'+
+        '<li><b>紧急情况：直接拨打 120 / 110</b></li>'+
+      '</ul>'+
+      '<div style="margin-top:9px">如果身边有信任的人，现在就给他发一条消息 —— 哪怕只是说一句"我现在很难受"。</div>'+
+    '</div></div>';
+}
+/* 统一收尾：渲染正文 + 按需追加危机干预卡 */
+function finalizeBubble(bubble,text,withCrisis){
+  if(!bubble) return;
+  bubble.innerHTML=renderAssistant(text);
+  if(withCrisis) bubble.insertAdjacentHTML("beforeend",crisisCard());
+  bindCodeCopy(bubble);
+}
+
+/* =================================================================
+   v5 学生画像：可视化卡片 + 完整度
+   ================================================================= */
+const PF_GROUPS=[
+  {k:"studyInfo",name:"学习情况",ico:"📚"},
+  {k:"mentalInfo",name:"心理状态",ico:"🌿"},
+  {k:"lifeInfo",name:"生活与规划",ico:"📅"},
+  {k:"healthInfo",name:"身体状况",ico:"💚"},
+  {k:"financeInfo",name:"消费情况",ico:"💰"}
+];
+const PF_FIELD_NAME={
+  weakSubject:"薄弱科目",studyProgress:"学习进度",examGoal:"考试目标",
+  mainPressure:"主要压力",moodStatus:"情绪状态",troubleList:"困扰清单",
+  schedule:"课表",futurePlan:"未来意向",abilityShortage:"能力短板",dailySchedule:"作息安排",
+  sleepStatus:"睡眠状况",dietHabit:"饮食习惯",exercise:"运动情况",discomfortSymptom:"不适症状",
+  monthlyLivingCost:"月生活费",consumeHabit:"消费习惯",partTimeSituation:"兼职情况"
+};
+function renderProfilePanel(){
+  const p=getProfile();
+  const cards=[]; let total=0,filled=0;
+  for(const grp of PF_GROUPS){
+    const obj=p[grp.k]||{};
+    const tags=[]; let gT=0,gF=0;
+    for(const f in obj){
+      gT++; total++;
+      const v=obj[f];
+      const isEmpty=Array.isArray(v)?v.length===0:!v;
+      if(isEmpty) continue;
+      gF++; filled++;
+      tags.push('<span class="pf-tag"><b>'+esc(PF_FIELD_NAME[f]||f)+'</b>'+esc(Array.isArray(v)?v.join("、"):String(v))+'</span>');
+    }
+    cards.push('<div class="pf-card'+(gF?"":" empty")+'">'+
+      '<div class="pf-h"><span class="pf-ico">'+grp.ico+'</span>'+grp.name+'<em>'+gF+'/'+gT+'</em></div>'+
+      (tags.length?('<div class="pf-tags">'+tags.join("")+'</div>')
+                  :'<div class="pf-none">还没有记录。和它聊几句，信息会自动沉淀到这里。</div>')+
+      '</div>');
+  }
+  const box=$("pfCards"); if(!box) return;
+  box.innerHTML=cards.join("");
+  const pct=total?Math.round(filled/total*100):0;
+  $("pfPct").textContent=pct+"%";
+  $("pfBar").style.width=pct+"%";
+  $("pfTip").textContent = pct>=80?"画像已经很完整，回答的个性化程度接近上限。"
+    : pct>=50?"还在补充中。把课表和作息补上，规划类回答会准确很多。"
+    : "信息还比较少。聊得越多它就越懂你，也可以直接在下面手动补。";
+  const ta=$("profileTa");
+  if(ta&&document.activeElement!==ta) ta.value=JSON.stringify(p,null,2);
+}
+
+/* =================================================================
+   v5 首次使用知情同意
+   ================================================================= */
+const CONSENT_KEY="aiAssistantConsent";
+function consentDone(){ try{ return localStorage.getItem(CONSENT_KEY)==="1"; }catch(e){ return false; } }
+
+/* =================================================================
+   配置与存储
+   -----------------------------------------------------------------
+   v7：两种使用方式，一套请求链路
+     · cloud —— 云端免费 AI：只填一个 API Key，零本地部署，手机上也能用
+     · local —— 本地模型：LM Studio / Ollama / 任意 OpenAI 兼容服务
+   两种模式产出的同样是 {apiUrl, model, apiKey}，因此 ask() / 语音 /
+   checkConnection() 完全共用，不需要各写一套分支。
+   cors 字段为「浏览器能否直连」的实测结论（OPTIONS 预检是否返回
+   Access-Control-Allow-Origin），决定它能不能在纯前端页面里被 fetch。
+   ================================================================= */
+const CFG_KEY="aiAssistantConfig";
+
+const CLOUD_PRESETS=[
+  {
+    id:"siliconflow", name:"硅基流动 SiliconFlow",
+    base:"https://api.siliconflow.cn/v1/chat/completions",
+    model:"Qwen/Qwen3-8B", cors:true, tag:"注册送额度 · 推荐",
+    keyPage:"https://cloud.siliconflow.cn/account/ak",
+    note:"国内直连、手机号注册即用，浏览器可直连。常驻免费模型：<b>Qwen/Qwen3-8B</b>、<b>Qwen/Qwen2.5-7B-Instruct</b>、<b>THUDM/GLM-4-9B-0414</b>（换模型只改下面「模型 ID」）。"
+  },
+  {
+    id:"dashscope", name:"阿里云百炼 · 通义千问",
+    base:"https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    model:"qwen-flash", cors:true, tag:"每模型 100 万 token 免费",
+    keyPage:"https://bailian.console.aliyun.com/",
+    note:"中文讲解与数学推导最稳的一家，<b>qwen-flash</b> 免费额度够跑完整场演示。需阿里云账号实名；想更强可换 <b>qwen-plus</b>（有免费试用额度）。"
+  },
+  {
+    id:"modelscope", name:"魔搭 ModelScope（每日免费）",
+    base:"https://api-inference.modelscope.cn/v1/chat/completions",
+    model:"Qwen/Qwen3-8B", cors:true, tag:"每天免费次数",
+    keyPage:"https://modelscope.cn/my/myaccesstoken",
+    note:"阿里达摩院社区，<b>每日有免费调用次数</b>，长期用最划算。绑阿里云账号后在我的页面拿 Access Token 填进来即用。"
+  },
+  {
+    id:"openrouter", name:"OpenRouter（免费模型）",
+    base:"https://openrouter.ai/api/v1/chat/completions",
+    model:"qwen/qwen3-8b:free", cors:true, tag:"模型名须带 :free",
+    keyPage:"https://openrouter.ai/keys",
+    note:"一个 Key 打通几十家模型。<b>模型 ID 必须带 :free 后缀才是免费</b>，例如 qwen/qwen3-8b:free、deepseek/deepseek-chat-v3-0324:free。需要能访问国际网络。"
+  },
+  {
+    id:"zhipu", name:"智谱 GLM-Flash（完全免费）",
+    base:"https://open.bigmodel.cn/api/paas/v4/chat/completions",
+    model:"glm-4.7-flash", cors:false, tag:"免费但需中转",
+    keyPage:"https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys",
+    note:"真免费、中文很强（GLM-4.7-Flash / GLM-4-Flash-250414 都免费），但网关<b>不返回跨域头</b>，浏览器直连会被拦，必须先用附带的中转脚本跑起本地代理，再把「接口地址」改成 <b>http://localhost:8787/v1/chat/completions</b>。"
+  },
+  {
+    id:"custom", name:"自定义（任意 OpenAI 兼容）",
+    base:"", model:"", cors:true, tag:"自己填",
+    keyPage:"",
+    note:"任何兼容 <b>/chat/completions</b> 的服务都行：自建网关、学校内网模型、公司代理、Cloudflare Worker 转发等。接口地址与模型 ID 请自行填写。"
+  }
+];
+
+const DEFAULT_CFG={
+  mode:"cloud",                       // "cloud" | "local"
+  provider:"siliconflow",             // 云端预设 id
+  cloud:{ apiUrl:"", model:"", apiKey:"" },   // 留空 = 跟随所选预设
+  local:{ apiUrl:"http://localhost:1234/v1/chat/completions", model:"Qwen2.5 Coder 7B Instruct", apiKey:"" },
+  temperature:"0.6",
+  topP:"0.9"
+};
+const PROFILE_KEY="studentUserProfile";   // v6 之前全局共享画像的旧键（迁移后不再使用）
+const THEME_KEY="aiAssistantTheme";   // "light" | "dark" | "auto"(默认，跟随系统)
+const ROLE_KEY="aiAssistantRole";     // 记住上次使用的角色（兼容旧数据）
+const SESSIONS_KEY="aiSessions";      // 多会话元数据列表
+const ACTIVE_SESSION_KEY="aiActiveSession";
+const MAX_MSG=40;
+const IDLE_TIMEOUT=300000;   /* 思考型模型首 token 可能延迟 2-5 分钟，超时须足够长 */
+
+const DEFAULT_PROFILE={
+  studyInfo:{weakSubject:"",studyProgress:"",examGoal:""},
+  mentalInfo:{mainPressure:"",moodStatus:"",troubleList:[]},
+  lifeInfo:{schedule:"",futurePlan:"",abilityShortage:"",dailySchedule:""},
+  healthInfo:{sleepStatus:"",dietHabit:"",exercise:"",discomfortSymptom:[]},
+  financeInfo:{monthlyLivingCost:"",consumeHabit:"",partTimeSituation:""}
+};
+
+function loadJSON(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):structuredClone(def);}catch(e){return structuredClone(def);}}
+function saveJSON(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+
+function presetById(id){ return CLOUD_PRESETS.find(p=>p.id===id)||CLOUD_PRESETS[0]; }
+function isLocalUrl(u){
+  const s=String(u||"");
+  return /localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|192\.168\.|10\.\d|172\.(1[6-9]|2\d|3[01])\./i.test(s);
+}
+function matchPresetId(u){
+  const s=String(u||"").replace(/\/+$/,"");
+  if(!s) return "";
+  const hit=CLOUD_PRESETS.find(p=>p.base&&s.startsWith(p.base.replace(/\/chat\/completions$/,"")));
+  return hit?hit.id:"";
+}
+/* 结构归一 + 老版本迁移：v6 及以前只有扁平 apiUrl/model/apiKey，
+   按地址前缀判断它本来属于本地还是云端，避免升级后 Key 丢失 */
+function migrateCfg(raw){
+  const r=(raw&&typeof raw==="object")?raw:{};
+  const out={
+    mode: r.mode==="local"?"local":"cloud",
+    provider: presetById(r.provider).id,
+    cloud: Object.assign({},DEFAULT_CFG.cloud,r.cloud||{}),
+    local: Object.assign({},DEFAULT_CFG.local,r.local||{}),
+    temperature: r.temperature||DEFAULT_CFG.temperature,
+    topP: r.topP||DEFAULT_CFG.topP
+  };
+  const legacy=!r.cloud&&!r.local&&(r.apiUrl||r.model);
+  if(legacy){
+    const u=String(r.apiUrl||"").trim(), m=String(r.model||""), k=String(r.apiKey||"");
+    if(isLocalUrl(u)||!u){
+      out.mode="local";
+      out.local={ apiUrl:u||DEFAULT_CFG.local.apiUrl, model:m||DEFAULT_CFG.local.model, apiKey:k };
+    }else{
+      out.mode="cloud";
+      out.provider=matchPresetId(u)||"custom";
+      out.cloud={ apiUrl:u, model:m, apiKey:k };
+    }
+  }
+  return out;
+}
+/* cfg() 对外仍返回扁平的 apiUrl / model / apiKey（= 当前模式生效值），
+   顺手附上 mode / provider / preset 供 UI 与提示文案使用 */
+function cfg(){
+  const base=migrateCfg(loadJSON(CFG_KEY,{}));
+  const p=presetById(base.provider);
+  const act=base.mode==="local"?base.local:base.cloud;
+  return Object.assign({},base,{
+    apiUrl: act.apiUrl||(base.mode==="cloud"?p.base:""),
+    model: act.model||(base.mode==="cloud"?p.model:""),
+    apiKey: act.apiKey||"",
+    preset: p
+  });
+}
+function saveCfg(patch){
+  const cur=migrateCfg(loadJSON(CFG_KEY,{}));
+  const next=Object.assign({},cur,patch||{});
+  if(patch&&patch.cloud) next.cloud=Object.assign({},cur.cloud,patch.cloud);
+  if(patch&&patch.local) next.local=Object.assign({},cur.local,patch.local);
+  saveJSON(CFG_KEY,next);
+  return next;
+}
+/* 是否已具备发起请求的最小配置（云端要有 Key，本地只要地址） */
+function cfgReady(c){
+  const v=c||cfg();
+  if(!v.apiUrl||!v.model) return false;
+  return v.mode==="local"?true:!!v.apiKey;
+}
+/* 统一请求头：云端与本地共用，避免三处各写一遍 Authorization */
+function buildHeaders(c,extra){
+  const h={"Content-Type":"application/json"};
+  if(c&&c.apiKey) h["Authorization"]="Bearer "+c.apiKey;
+  /* OpenRouter 建议带上来源标识，否则免费模型易被限流 */
+  if(c&&c.preset&&c.preset.id==="openrouter"){
+    h["HTTP-Referer"]=(location.origin&&location.origin!=="null")?location.origin:"http://localhost";
+    h["X-Title"]="AI学习伙伴";
+  }
+  return Object.assign(h,extra||{});
+}
+function modeText(c){ return (c||cfg()).mode==="local"?"本地模型":"云端 AI"; }
+
+function profileKey(id){ return "profile_"+id; }
+/* 画像按「会话」隔离：不同会话记录不同用户的画像 */
+function getProfile(){ return loadJSON(profileKey(sid),DEFAULT_PROFILE); }
+function setProfile(p){ saveJSON(profileKey(sid),p); renderProfilePanel(); }
+function getSessions(){ return loadJSON(SESSIONS_KEY,[]); }
+function setSessions(a){ saveJSON(SESSIONS_KEY,a); }
+function sessionById(id){ return getSessions().find(s=>s.id===id); }
+/* 会话初始化与迁移：
+   ① 把「按角色自动生成的 5 个单助手会话」合并为一个「含 5 个助手」的容器（仅在会话集恰好等于 5 个角色名时触发，安全且不误并）；
+   ② 全新用户只生成 1 个中性会话（含全部 5 助手），不再生成 5 个单助手会话。 */
+function initSessions(){
+  let list=loadJSON(SESSIONS_KEY,null);
+  /* 迁移：合并旧版按角色拆分的多会话 → 单容器（每个角色的历史归入对应 module 桶） */
+  if(Array.isArray(list)&&list.length===ROLES.length){
+    const roleNames=new Set(ROLES.map(r=>r.name));
+    if(list.every(s=>roleNames.has(s.name))){
+      const mergedId="sess_merge_"+Date.now();
+      const bucket={};
+      list.forEach(s=>{
+        const arr=loadJSON("chat_history_"+s.id,[]);
+        const rid=s.roleId||"module1";
+        bucket[rid]=(Array.isArray(bucket[rid])?bucket[rid]:[]).concat(Array.isArray(arr)?arr:[]);
+        try{ localStorage.removeItem("chat_history_"+s.id); }catch(_){}
+      });
+      saveJSON("chat_history_"+mergedId,bucket);
+      list=[{id:mergedId,name:"我的会话",roleId:"module1",createdAt:Date.now()}];
+      setSessions(list);
+    }
+  }
+  if(!Array.isArray(list)||!list.length){
+    /* 全新用户：只生成 1 个「含 5 个助手」的中性会话 */
+    const id="sess_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
+    const bucket={}; ROLES.forEach(r=>bucket[r.id]=[]);
+    saveJSON("chat_history_"+id,bucket);
+    list=[{id,name:"新会话 1",roleId:"module1",createdAt:Date.now()}];
+    setSessions(list);
+  }
+  let act=localStorage.getItem(ACTIVE_SESSION_KEY);
+  if(!act||!list.some(x=>x.id===act)) act=list[0]&&list[0].id;
+  sid=act||"";
+  const cur=sessionById(sid);
+  current=cur?cur.roleId:"module1";
+}
+function histKey(id){return "chat_history_"+id;}
+/* 新版存储结构：每个会话一份对象，按模块分桶存放各自独立的对话历史：
+   { module1:[...], module2:[...], module3:[...], module4:[...], module5:[...] }
+   五个模块共享同一会话的「学生画像」，但各自保留独立对话线程。 */
+function getHist(sid, mod){
+  let obj=loadJSON(histKey(sid),{});
+  /* 兼容旧版：历史曾是「扁平数组」（按角色分会话时代），首次读取时就地迁移为按模块分桶 */
+  if(Array.isArray(obj)){
+    const s=sessionById(sid);
+    const rid=(s&&s.roleId)||"module1";
+    obj={[rid]:obj};
+    saveJSON(histKey(sid),obj);
+  }
+  if(!mod) return obj;                 // 无 mod 参数时返回整份对象（供调试/迁移检查）
+  return Array.isArray(obj[mod])?obj[mod]:[];
+}
+function setHist(sid, mod, arr){
+  let cur=loadJSON(histKey(sid),{});
+  let base;
+  if(Array.isArray(cur)){              // 兼容旧版扁平数组
+    const s=sessionById(sid); const rid=(s&&s.roleId)||"module1";
+    base={[rid]:cur};
+  }else base=cur;
+  if(!Array.isArray(arr)) arr=Array.isArray(base[mod])?base[mod]:[];
+  if(arr.length>MAX_MSG) arr=arr.slice(arr.length-MAX_MSG);
+  base[mod]=arr;
+  try{ localStorage.setItem(histKey(sid),JSON.stringify(base)); }
+  catch(e){
+    /* 配额超限：把历史图片的 dataUrl 降级为占位符后按模块重试 */
+    try{
+      const lite={};
+      for(const k in base) lite[k]=base[k].map(m=>m.atts?{...m,atts:m.atts.map(a=>a.kind==="image"?{...a,dataUrl:""}:a)}:m);
+      localStorage.setItem(histKey(sid),JSON.stringify(lite));
+    }catch(e2){
+      /* 仍超限则放弃本轮持久化，不影响对话继续；提示用户 */
+      toast("⚠️ 对话历史存储空间已满，较早的消息将不会被保存","err");
+    }
+  }
+}
+function deriveModelsUrl(apiUrl){
+  let u=String(apiUrl||"").trim().replace(/\/+$/,"");
+  if(!u) return "";
+  if(/\/chat\/completions$/i.test(u)) return u.replace(/\/chat\/completions$/i,"/models");
+  if(/\/v1$/i.test(u)) return u+"/v1/models";
+  return u+"/v1/models";
+}
+
+/* =================================================================
+   五个角色的 System Prompt（逐字保留）
+   ================================================================= */
+const SP = {};
+SP.module1 =
+`角色定位：面向大学本科新生的高精度全科学习助教，主攻两大硬核学科：
+1. 高等数学（极限、导数、微分、积分、多元函数、级数、常微分方程等本科上、下册全部内容，遵循同济第七版标准）；
+2. 计算机入门编程（C / Python / Java）基础到进阶。
+具备大学教师级讲解能力，处理基础题、中档题、复杂推导题、易错题、综合应用题、编程逻辑难题；输出严谨准确、无知识性错误、步骤完整、逻辑闭环，符合大学作业与考试标准。
+【核心能力·深度答疑】无论提问简单或复杂，必须：给出教材标准完整概念定义；解释底层原理讲清"为什么"；学生基础薄弱时自动补前置知识点；单独标注易错点、混淆概念、考试扣分陷阱；数学复杂推导严禁跳步；代码逐行解释语法→逻辑→运行流程→内存变化→常见报错。
+【生成课件·固定结构】点击【生成课件】触发，强制包含且顺序为：①本节学习目标 ②前置必备知识点 ③核心定义/定理/公式（同济七版标准）④原理深度解析 ⑤典型例题（简单+中档）⑥易错总结 ⑦文字版知识思维导图 ⑧课后学习建议。适合预习、复习、打印。
+【生成习题·分层强制】点击【生成习题详解】触发，分层：基础巩固题、中档考试常考题、综合拔高题。每题强制包含：完整题目、无跳步详细解题步骤、标准答案、解题思路分析、易错提醒、考点归属；编程题额外给：完整可运行无 bug 代码、逐行注释、预期运行结果、新手错误写法对比。
+【数学强制规则】定理公式全部遵循同济第七版；推导不跳步适配大一水平；极限/积分/微分方程必须写明适用条件、前提、使用场景；主动识别考试坑点；拒绝模糊、推导逻辑闭环；全部数学用纯文本表达，禁止 LaTeX，示例 lim(x→0) sinx/x=1、x²、√(2x-1)。
+【数学输出规则】全程不使用 MathJax，完全离线可用；禁用一切 LaTeX 标记，所有数学公式与推导全部使用纯文本手写表达。示例：x^2+2x+1=0、∫(0到1) 2x dx、lim(x→0) sinx/x。严禁出现 $、$$、\frac、\sqrt、\int、\lim 等任何 LaTeX 符号与记号。
+【编程强制规则】未指定语言默认 C，用户指定则跟随；代码可直接运行、无省略伪代码；解释链条语法→逻辑→运行过程→内存变化→常见报错；深度拆解指针、数组、循环、递归、作用域；区分考试写法/工程写法/新手易错写法。所有代码必须放在带语言标注的 Markdown 代码块中输出。
+【输出与禁止】分点分层，拒绝大段堆砌；【重点】【易错】【考点】标记；禁止简略敷衍、禁止编造定理/公式/代码、禁止输出思考链、禁止超纲；非高数与 C/Python/Java 问题礼貌告知不支持；自动适配水平：简单提问通俗讲、复杂提问深推导、模糊提问主动补全并纠正误区。`;
+
+SP.module2 =
+`角色设定：你是大学生情绪陪伴疏导顾问，专注大学生群体常见心理困扰——学业压力、考试焦虑、内卷内耗、人际关系矛盾、宿舍冲突、恋爱情感、自我否定、社团压力、迷茫无意义感。回答前先读取【学生档案·mentalInfo 及关联的压力来源】，做到个性化。
+✅ 允许：共情倾听、梳理与命名情绪、分析困境成因、给出可落地的小步可执行调节建议、认知调整思路、可行的求助与放松方法。
+❌ 严格禁止：精神疾病的临床诊断、给出心理治疗方案、开具或推荐药物。
+❗ 强制高危处理规则：当用户表达自残、自杀、严重抑郁绝望等危险表述时，必须首先原样输出以下固定提醒，再给予安抚：
+⚠️ 重要提示：我仅能提供情绪陪伴，不能替代专业心理咨询。请立刻联系学校心理咨询中心，必要时前往正规精神卫生医疗机构寻求专业帮助。
+对话中主动收集并写入画像：mainPressure（主要压力来源）、moodStatus（当前情绪状态）、troubleList（困扰清单）。`;
+
+SP.module3 =
+`角色设定：大学生校园规划顾问。工作逻辑：读取【学生档案】中的课表(schedule)、作息与日程(dailySchedule)、考研/考公/就业/出国发展意向(futurePlan)、个人能力短板(abilityShortage)、压力状态(mentalInfo)。
+可处理：课表时间规划、每日/每周日程制定、选课建议、社团取舍、实习规划、备考计划、校园生活问题、时间管理。
+强制要求：生成任何规划方案都必须基于已收集的画像信息做到个性化，禁止输出通用模板；当缺少关键信息（如不清楚课表、未来意向）时，先主动提问收集，收到后自动写入画像 lifeInfo 再继续作答。`;
+
+SP.module4 =
+`角色设定：面向大学生群体的健康科普助手。工作逻辑：结合用户描述的症状，读取【学生档案·healthInfo】(睡眠/饮食/运动/既往不适) 及关联的 lifeInfo 作息、mentalInfo 情绪，结合当代大学生常见现象（熬夜脱发、颈椎不适、饮食不规律、久坐、经期不适等）做健康科普与生活方式调整建议。
+🔴 铁则（绝对强制）：
+1. 绝对不允许做出任何疾病确诊判断；绝对不开药、不推荐任何药品；
+2. 当用户描述较重、持续或危险的症状时，必须先原样输出以下提示再科普：
+⚠️ 提示：我仅为科普参考，不能替代执业医师诊断，该情况建议尽快前往线下医院就诊检查。
+对话中收集并写入画像：sleepStatus、dietHabit、exercise、discomfortSymptom（不适症状清单）。`;
+
+SP.module5 =
+`角色定位：大学生校园理财与消费观念顾问。业务范围：生活费分配规划、理性消费引导、校园消费防坑、校园金融诈骗科普、兼职收入管理、存钱攒钱思路。读取【学生档案·financeInfo】及关联的 mentalInfo（是否有冲动消费、情绪化消费）、lifeInfo（兼职情况）做个性化建议。
+🔴 铁则（绝对强制）：严禁推荐任何股票、基金、虚拟币、理财产品；不做任何投资收益预测；不提供任何投资操作指导。只做消费观念引导与生活费管理科普。
+对话中收集并写入画像：monthlyLivingCost（月生活费）、consumeHabit（消费习惯）、partTimeSituation（兼职/收入情况）。`;
+
+const READ_SCOPE={
+  module1:["studyInfo","lifeInfo"],
+  module2:["mentalInfo","studyInfo","healthInfo","lifeInfo"],
+  module3:["studyInfo","mentalInfo","lifeInfo","healthInfo","financeInfo"],
+  module4:["healthInfo","lifeInfo","mentalInfo"],
+  module5:["financeInfo","mentalInfo","lifeInfo"]
+};
+const SECTION_NAME={studyInfo:"学习信息",mentalInfo:"心理状态",lifeInfo:"生活作息与规划",healthInfo:"健康状况",financeInfo:"理财消费"};
+
+function buildProfileBlock(moduleId){
+  const p=getProfile(); const scope=READ_SCOPE[moduleId]||[];
+  const lines=[];
+  for(const k of scope){
+    const obj=p[k]; if(!obj)continue;
+    const seg=[];
+    for(const f in obj){
+      const v=obj[f];
+      if(Array.isArray(v)){ if(v.length) seg.push(SECTION_NAME[k]+"·"+f+"=["+v.join("、")+"]"); }
+      else if(v){ seg.push(SECTION_NAME[k]+"·"+f+"="+v); }
+    }
+    if(seg.length) lines.push("- "+seg.join("；"));
+  }
+  if(!lines.length) return "【学生档案】（暂无记录，可在对话中主动询问收集）";
+  return "【学生档案】\n"+lines.join("\n")+"\n（请基于以上档案做个性化回答，不要输出与档案矛盾的通用模板，并显式关联其它模块信息形成连贯关怀。）";
+}
+
+/* =================================================================
+   画像抽取与合并
+   ================================================================= */
+const PROFILE_TAG="<<<PROFILE_UPDATE:";
+const PROFILE_INSTRUCTION=
+"\n\n【画像更新协议】在你回复的最末尾，另起一行，用如下固定格式输出本轮新收集到的画像信息（没有新信息则输出 {}）：\n"+
+"<<<PROFILE_UPDATE:{\"分组\":{\"字段\":\"值\"}}>>>\n"+
+"可用分组/字段：studyInfo{weakSubject,studyProgress,examGoal}; mentalInfo{mainPressure,moodStatus,troubleList(数组)}; "+
+"lifeInfo{schedule,futurePlan,abilityShortage,dailySchedule}; healthInfo{sleepStatus,dietHabit,exercise,discomfortSymptom(数组)}; "+
+"financeInfo{monthlyLivingCost,consumeHabit,partTimeSituation}。只填有更新且确有信息的字段，不要输出思考过程。";
+
+function extractAndUpdateProfile(text){
+  const re=/<<<PROFILE_UPDATE:([\s\S]*?)>>>\s*$/;
+  const m=text.match(re);
+  let visible=text;
+  if(m){
+    visible=text.replace(re,"").trim();
+    try{ mergeProfile(JSON.parse(m[1])); }catch(e){}
+  }
+  return visible;
+}
+function stripForDisplay(text){ const i=text.indexOf(PROFILE_TAG); return i>=0?text.slice(0,i):text; }
+function mergeProfile(upd){
+  const p=getProfile();
+  for(const grp in upd){
+    if(!p[grp]) continue;
+    const fields=upd[grp];
+    for(const f in fields){
+      const nv=fields[f];
+      if(nv===""||nv==null||(Array.isArray(nv)&&nv.length===0)) continue;
+      if(Array.isArray(p[grp][f])){
+        p[grp][f]=[...new Set([...p[grp][f],...(Array.isArray(nv)?nv:[nv])])];
+      }else{
+        p[grp][f]=(Array.isArray(nv)?nv.join("、"):nv);
+      }
+    }
+  }
+  setProfile(p);
+}
+
+/* =================================================================
+   零依赖代码高亮（C / Python / Java）
+   ================================================================= */
+const KW={
+  c:new Set("int char float double void if else for while do return break continue switch case default struct typedef union enum static const sizeof unsigned signed long short goto extern volatile register inline NULL true false bool auto restrict size_t std cout cin endl vector string map set queue stack deque pair namespace template typename using class public private protected new delete nullptr this friend operator virtual override noexcept include define ifdef ifndef endif pragma".split(" ")),
+  python:new Set("def class if elif else for while return import from as try except finally with lambda yield global nonlocal pass break continue and or not in is None True False assert del raise async await print self match".split(" ")),
+  java:new Set("public private protected class interface extends implements static final void int char float double boolean long short byte if else for while do return break continue switch case default new this super try catch finally throw throws import package null true false String System abstract synchronized instanceof enum var".split(" "))
+};
+function normLang(l){
+  l=String(l||"").toLowerCase().trim();
+  if(/^(py|python|python3)$/.test(l)) return "python";
+  if(/^(java)$/.test(l)) return "java";
+  if(/^(c|cpp|c\+\+|cc|cxx|h|hpp|js|javascript|ts|typescript|cs|csharp|go|rust)$/.test(l)) return "c";
+  return "c";
+}
+/* 入参必须【已】HTML 转义（md() 入口统一处理），此处不可再 esc */
+function hlCode(code,lang){
+  const src=code, L=normLang(lang), kws=KW[L]||KW.c, isPy=(L==="python");
+  const out=[]; const n=src.length; let i=0;
+  while(i<n){
+    const ch=src[i], nx=src[i+1];
+    if(!isPy && ch==="/" && nx==="/"){ let j=src.indexOf("\n",i); if(j<0)j=n; out.push('<span class="c-com">'+src.slice(i,j)+"</span>"); i=j; continue; }
+    if(!isPy && ch==="/" && nx==="*"){ let j=src.indexOf("*/",i+2); j=(j<0)?n:j+2; out.push('<span class="c-com">'+src.slice(i,j)+"</span>"); i=j; continue; }
+    if(isPy && ch==="#"){ let j=src.indexOf("\n",i); if(j<0)j=n; out.push('<span class="c-com">'+src.slice(i,j)+"</span>"); i=j; continue; }
+    if(ch==='"'||ch==="'"){
+      let j=i+1;
+      while(j<n){ if(src[j]==="\\"){j+=2;continue;} if(src[j]===ch){j++;break;} j++; }
+      out.push('<span class="c-str">'+src.slice(i,j)+"</span>"); i=j; continue;
+    }
+    if(ch>="0"&&ch<="9" && !/[A-Za-z0-9_]/.test(src[i-1]||"")){
+      let j=i; while(j<n && /[0-9a-fA-FxX._]/.test(src[j])) j++;
+      out.push('<span class="c-num">'+src.slice(i,j)+"</span>"); i=j; continue;
+    }
+    if(/[A-Za-z_]/.test(ch)){
+      let j=i; while(j<n && /[A-Za-z0-9_]/.test(src[j])) j++;
+      const w=src.slice(i,j);
+      if(kws.has(w)) out.push('<span class="c-kw">'+w+"</span>");
+      else if(src[j]==="(") out.push('<span class="c-fn">'+w+"</span>");
+      else out.push(w);
+      i=j; continue;
+    }
+    out.push(ch); i++;
+  }
+  return out.join("");
+}
+
+/* =================================================================
+   Markdown-lite
+   ================================================================= */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+/* 链接渲染：Markdown 链接 + 裸 URL，新窗口打开；行内代码中的 URL 不转换 */
+function linkify(s){
+  s=s.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  s=s.replace(/(?<!["'=<])(https?:\/\/[A-Za-z0-9\-._~:\/?#[\]@!$&'()*+,;=%\u00C0-\uFFFD]+)/g,(m,url)=>{
+    let tail="";
+    /* 剥离 URL 尾部误吞的中文标点与 HTML 实体（&quot; &lt; 等） */
+    const t=url.match(/(?:[。，、；：！？）】》“”‘’…]+|&(?:quot|lt|gt|#39);)+$/);
+    if(t){ tail=t[0]; url=url.slice(0,url.length-t[0].length); }
+    /* 尾部 ASCII 闭括号若无对应开括号则剥出（如 “(https://x.com)” 的右括号） */
+    while(/[)\]}]$/.test(url)){
+      const close=url[url.length-1];
+      const open={")":"(","]":"[","}":"{"}[close];
+      if(url.split(close).length-1>url.split(open).length-1){ tail=close+tail; url=url.slice(0,-1); }
+      else break;
+    }
+    return '<a href="'+url+'" target="_blank" rel="noopener noreferrer">'+url+'</a>'+tail;
+  });
+  return s;
+}
+/* 数值解析：非法输入回退默认值，但合法 0 必须保留（0 温度=确定性输出） */
+function parseNum(s,dft){ const v=parseFloat(s); return Number.isFinite(v)?v:dft; }
+
+/* Thinking 模型渲染：<think>…</think> 折叠为思考框，正文正常渲染；
+   LM Studio / Ollama 的思考型模型（qwen3-vl-thinking 等）直接可用 */
+function renderAssistant(full){
+  const m=String(full).match(/^<think>([\s\S]*?)(<\/think>([\s\S]*))?$/);
+  if(!m) return md(full);
+  const think=m[1].trim(), rest=(m[3]||"").trim();
+  const inner='<details class="think-box"'+(rest?"":" open")+'><summary>💭 思考过程'+(rest?"（点击展开）":"…")+'</summary>'+
+    '<div class="think-body">'+esc(think)+'</div></details>';
+  return rest ? inner+md(rest) : inner+'<span class="caret"></span>';
+}
+
+function md(text){
+  text=esc(text);
+  let out=""; const lines=text.split("\n");
+  let inCode=false,codeBuf=[],inList=false,codeLang="c";
+  const closeList=()=>{if(inList){out+="</ul>";inList=false;}};
+  const flushCode=()=>{
+    const raw=codeBuf.join("\n");
+    const lines=raw.split("\n").length;
+    const collapsed=lines>14;
+    const body=hlCode(raw,codeLang);
+    out+='<div class="code-wrap'+(collapsed?" collapsed":"")+'">'+
+      '<div class="code-head"><span class="code-lang">'+esc(codeLang||"code")+'</span>'+
+      '<span class="code-tools">'+
+        '<button class="code-toggle" type="button">'+(collapsed?"展开 ▾":"收起 ▴")+'</button>'+
+        '<button class="code-zoom" type="button" title="放大查看完整代码">⛶ 放大</button>'+
+        '<button class="code-copy" type="button">复制</button>'+
+      '</span></div>'+
+      '<pre class="code-pre"><code>'+body+'</code></pre>'+
+      (collapsed?'<div class="code-fade"></div><button class="code-more" type="button">展开全部代码 ▾</button>':'')+
+      '</div>';
+    codeBuf=[];
+  };
+  for(const raw of lines){
+    const line=raw;
+    if(line.trim().startsWith("```")){
+      if(inCode){ flushCode(); inCode=false; }
+      else{ closeList(); inCode=true; codeLang=normLang(line.trim().slice(3).trim())||"c"; }
+      continue;
+    }
+    if(inCode){ codeBuf.push(line); continue; }
+    let l=line;
+    l=l.replace(/`([^`]+)`/g,"\u0001$1\u0002");   // 行内代码先用 \u0001…\u0002 占位，避免其中 URL 被链接化
+    l=linkify(l);
+    l=l.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>");
+    l=l.replace(/\u0001([^\u0001]*)\u0002/g,"<code>$1</code>");   // 还原为 <code>
+    if(/^#{1,3}\s+/.test(l)){closeList();const lvl=l.match(/^#+/)[0].length;out+="<h"+lvl+">"+l.replace(/^#+\s+/,"")+"</h"+lvl+">";continue;}
+    if(/^\s*[-*]\s+/.test(l)){if(!inList){out+="<ul>";inList=true;}out+="<li>"+l.replace(/^\s*[-*]\s+/,"")+"</li>";continue;}
+    if(/^\s*\d+\.\s+/.test(l)){if(!inList){out+="<ul>";inList=true;}out+="<li>"+l+"</li>";continue;}
+    closeList();
+    if(l.trim()==="")out+="<br>";else out+="<div>"+l+"</div>";
+  }
+  if(inCode) flushCode();
+  closeList();
+  return out;
+}
+
+/* =================================================================
+   Toast 通知：替代 alert/confirm 的轻反馈
+   ================================================================= */
+function toast(msg,type){
+  const box=$("toasts");
+  const t=document.createElement("div");
+  t.className="toast"+(type?" "+type:"");
+  t.innerHTML='<span class="t-dot"></span><span>'+esc(msg).replace(/\n/g,"<br>")+'</span>';
+  t.onclick=()=>dismiss();
+  box.appendChild(t);
+  while(box.children.length>3) box.firstChild.remove();
+  const timer=setTimeout(dismiss,3200);
+  function dismiss(){ clearTimeout(timer); t.classList.add("bye"); setTimeout(()=>t.remove(),230); }
+}
+
+/* =================================================================
+   主题：跟随系统 + 手动切换（记忆偏好）
+   ================================================================= */
+const mqDark=window.matchMedia("(prefers-color-scheme: dark)");
+function themeMode(){ const v=localStorage.getItem(THEME_KEY); return (v==="light"||v==="dark")?v:"auto"; }
+function isDark(){
+  const m=themeMode();
+  return m==="dark"||(m==="auto"&&mqDark.matches);
+}
+function syncThemeUI(){
+  if(themeMode()==="auto"){ document.body.removeAttribute("data-theme"); }
+  else{ document.body.dataset.theme=themeMode(); }
+  const tb=$("themeBtn");
+  if(tb) tb.textContent=isDark()?"☀️":"🌙";
+}
+function setThemeMode(m){
+  if(m==="auto") localStorage.removeItem(THEME_KEY);
+  else localStorage.setItem(THEME_KEY,m);
+  syncThemeUI(); applyRoleTheme(current);
+}
+mqDark.addEventListener("change",()=>{ if(themeMode()==="auto"){ syncThemeUI(); applyRoleTheme(current); } });
+
+/* =================================================================
+   状态
+   ================================================================= */
+let current="module1";   /* 当前会话所选模块（角色）id */
+let sid="";              /* 当前会话 id（历史与画像均按会话隔离） */
+let busy=false;
+let abortCtrl=null;
+const $=id=>document.getElementById(id);
+const chatEl=$("chat"), rolesEl=$("roles"), chipsEl=$("chips"), inputEl=$("input"),
+      sendBtn=$("sendBtn"), scrimEl=$("scrim"), drawerEl=$("drawer"), connTipEl=$("connTip"),
+      profileTa=$("profileTa"), jumpBtn=$("jumpBtn");
+
+/* ---------- 角色主题色 ---------- */
+function applyRoleTheme(roleId){
+  const r=roleById(roleId);
+  const dark=isDark();
+  const root=document.documentElement;
+  root.style.setProperty("--accent", `hsl(${r.h},${r.s}%,${dark?(r.l+10):r.l}%)`);
+  root.style.setProperty("--accent-soft", dark?`hsl(${r.h},${Math.max(22,r.s-34)}%,17%)`:`hsl(${r.h},${r.s}%,95%)`);
+  root.style.setProperty("--accent-grad", `linear-gradient(135deg,hsl(${r.h},${r.s}%,${dark?(r.l+10):r.l}%),hsl(${(r.h+20)%360},${r.s}%,${dark?(r.l+2):(r.l+8)}%))`);
+  root.style.setProperty("--ring", `0 0 0 3px hsla(${r.h},${r.s}%,${r.l}%,${dark?.30:.18})`);
+  document.body.dataset.role=roleId;
+}
+/* ---------- 角色导航 ---------- */
+function renderRoles(){
+  rolesEl.innerHTML="";
+  ROLES.forEach(r=>{
+    const b=document.createElement("button");
+    b.className="role"+(r.id===current?" active":"");
+    b.style.setProperty("--c",`hsl(${r.h},${r.s}%,${r.l}%)`);
+    b.dataset.id=r.id;
+    b.innerHTML='<span class="role-ico">'+r.icon+'</span>'+
+      '<span class="role-info"><b>'+r.name+'</b><i>'+r.desc+'</i></span>';
+    b.onclick=()=>switchRole(r.id);
+    rolesEl.appendChild(b);
+  });
+}
+function renderHead(){
+  const r=roleById(current);
+  $("headIco").textContent=r.icon;
+  $("headName").textContent=r.name;
+  $("headDesc").textContent=r.desc;
+  inputEl.placeholder="向"+r.name+"提问…";
+}
+/* ---------- 快捷指令 ---------- */
+function renderChips(){
+  const list=[];
+  if(current==="module1"){
+    list.push({act:"courseware",label:"📑 生成课件"},{act:"exercise",label:"📝 生成习题"});
+  }
+  list.push({act:"polish",label:"✨ 完善回答"},{act:"clear",label:"🗑 清空对话",warn:true});
+  chipsEl.innerHTML="";
+  list.forEach(c=>{
+    const b=document.createElement("button");
+    b.className="chip"+(c.warn?" warn":"");
+    b.textContent=c.label;
+    b.onclick=()=>toolAction(c.act);
+    chipsEl.appendChild(b);
+  });
+}
+/* ---------- 对话渲染 ---------- */
+function scrollBottom(){ chatEl.scrollTop=chatEl.scrollHeight; }
+function renderChat(){
+  chatEl.innerHTML="";
+  const h=getHist(sid,current);
+  if(!h.length){
+    renderWelcome();
+  }else{
+    h.forEach(m=>addBubble(m.role,m.content,false,m.atts));
+  }
+  renderInsight();        // v5：跨角色记忆洞察
+  prependDemoBanner();    // v5：演示模式横幅
+  scrollBottom();
+  updateJump();
+}
+function renderWelcome(){
+  const r=roleById(current);
+  const ex=EXAMPLES[current]||[];
+  const w=document.createElement("div");
+  w.className="welcome";
+  w.innerHTML=
+    '<div class="welcome-card">'+
+      '<h2>'+r.icon+' 我是你的'+r.name+'</h2>'+
+      '<p>'+welcomeText(current)+'</p>'+
+      '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+        '<span class="welcome-note">🔒 推理全在本机完成</span>'+
+        '<span class="welcome-note">🧠 本会话内五个角色共享一份画像</span>'+
+        '<span class="welcome-note">🔀 上方切换 5 个助手，各自独立对话</span>'+
+      '</div>'+
+    '</div>'+
+    '<div><div class="ex-title">试试这样问</div><div class="ex-grid">'+
+      ex.map((e,i)=>'<button class="ex-card" data-i="'+i+'"><b>'+e.t+'</b>'+e.q+'</button>').join("")+
+    '</div></div>';
+  chatEl.appendChild(w);
+  w.querySelectorAll(".ex-card").forEach(btn=>{
+    btn.onclick=()=>ask(ex[+btn.dataset.i].q);
+  });
+}
+function welcomeText(id){
+  return {
+    module1:"主攻高等数学与 C / Python / Java 编程。给完整定义、底层原理与不跳步推导，代码逐行解释，并标注考试易错点。<b>它记得你的进度与薄弱点</b>，不会每次都从第一章讲起。",
+    module2:"这里是安全的倾诉空间。学业、人际、恋爱、迷茫都可以说，我不会评判，只会陪你把情绪理清楚，一起找可执行的小办法。<b>你说过的事，它会记住。</b>",
+    module3:"帮你把课表、作息和未来规划理清楚。<b>它已经知道你的作息、压力状态与未来意向</b>，所以给出的是个性化日程，而不是通用模板。",
+    module4:"基于你的作息、饮食、运动情况给生活方式建议。我不做诊断、不开药；症状较重时会提醒你及时就医。",
+    module5:"只谈消费观念与生活费管理，绝不荐股荐基金。告诉它月生活费和消费习惯，它会把每月的钱帮你安排明白。"
+  }[id]||"";
+}
+/* 历史统一使用 API 标准 role（user / assistant）：
+   渲染时只判断「是不是 user」，其余一律按 AI 处理，
+   避免出现 role 命名不一致导致历史消息退化成纯文本。 */
+function addBubble(role,content,persist,atts){
+  const isUser=(role==="user");
+  const wrap=document.createElement("div");
+  wrap.className="msg "+(isUser?"user":"ai");
+  const ava=document.createElement("div");
+  ava.className="msg-ava";
+  if(!isUser) ava.textContent=roleById(current).icon;
+  const b=document.createElement("div");
+  b.className="bubble";
+  b.innerHTML= isUser ? esc(content).replace(/\n/g,"<br>") : renderAssistant(content);
+  /* 附件展示块（图片可点击放大，文件显示提取状态） */
+  if(atts&&atts.length){
+    const box=document.createElement("div");
+    box.className="b-att";
+    for(const a of atts){
+      if(a.kind==="image"){
+        if(a.dataUrl){
+          const im=document.createElement("img");
+          im.src=a.dataUrl; im.alt=a.name; im.title=a.name;
+          im.onclick=()=>zoomImg(a.dataUrl);
+          box.appendChild(im);
+        }else{
+          const s=document.createElement("span");
+          s.className="b-file"; s.textContent="🖼 "+a.name;
+          box.appendChild(s);
+        }
+      }else{
+        const s=document.createElement("span");
+        s.className="b-file";
+        s.textContent="📄 "+a.name+(a.text?" · "+a.text.length+" 字":"");
+        box.appendChild(s);
+      }
+    }
+    b.insertBefore(box,b.firstChild);
+  }
+  wrap.appendChild(ava);wrap.appendChild(b);
+  const acts=document.createElement("div");
+  acts.className="msg-acts";
+  acts.appendChild(makeMini("复制",()=>copyText(content)));
+  if(!isUser){
+    /* 「重新生成」只保留在最新一条 AI 回答上，避免语义歧义 */
+    chatEl.querySelectorAll('.mini[data-act="regen"]').forEach(x=>x.remove());
+    acts.appendChild(makeMini("重新生成",()=>regenerate(),"regen"));
+  }
+  wrap.appendChild(acts);
+  chatEl.appendChild(wrap);
+  bindCodeCopy(b);
+  scrollBottom();
+  if(persist){
+    const h=getHist(sid,current);
+    const rec={role:isUser?"user":"assistant",content};
+    if(atts&&atts.length) rec.atts=atts;
+    h.push(rec); setHist(sid,current,h);
+  }
+  return b;
+}
+function makeMini(label,fn,act){
+  const b=document.createElement("button");
+  b.className="mini";b.type="button";b.textContent=label;
+  if(act) b.dataset.act=act;
+  b.onclick=()=>{
+    if(label==="复制"){
+      fn();
+      b.textContent="已复制 ✓";
+      setTimeout(()=>b.textContent="复制",1300);
+    }else if(!busy) fn();   /* 生成中禁止重新生成等操作，防竞态 */
+  };
+  return b;
+}
+function copyText(t){
+  if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).catch(()=>{});
+}
+function bindCodeCopy(root){
+  root.querySelectorAll(".code-wrap").forEach(w=>{
+    if(w.dataset.bound) return; w.dataset.bound="1";
+    const copyBtn=w.querySelector(".code-copy");
+    if(copyBtn) copyBtn.onclick=()=>{
+      const code=w.querySelector("code");
+      copyText(code?code.innerText:"");
+      copyBtn.textContent="已复制 ✓";
+      setTimeout(()=>copyBtn.textContent="复制",1300);
+    };
+    const zoomBtn=w.querySelector(".code-zoom");
+    if(zoomBtn) zoomBtn.onclick=()=>{
+      const pre=w.querySelector(".code-pre");
+      const lang=(w.querySelector(".code-lang")||{}).textContent||"code";
+      zoomCode(pre?pre.outerHTML:"",lang);
+    };
+    w.querySelectorAll(".code-toggle,.code-more").forEach(t=>{
+      t.onclick=()=>{
+        const now=w.classList.toggle("collapsed");
+        const tog=w.querySelector(".code-toggle");
+        if(tog) tog.textContent=now?"收起 ▴":"展开 ▾";
+        if(!now) w.scrollIntoView({block:"nearest"});
+      };
+    });
+  });
+}
+/* 全屏放大查看代码（#codeModal 在脚本之后解析，故在首次调用时惰性绑定） */
+function zoomCode(preHtml,lang){
+  const m=$("codeModal"); if(!m) return;
+  m.querySelector(".cm-body").innerHTML=preHtml||"";
+  const lab=m.querySelector("#cmLang"); if(lab) lab.textContent=lang||"code";
+  if(!m.dataset.wired){
+    m.dataset.wired="1";
+    const close=()=>m.classList.remove("show");
+    m.querySelector("#cmClose").onclick=close;
+    m.onclick=e=>{ if(e.target===m) close(); };
+    const cp=m.querySelector("#cmCopy");
+    if(cp) cp.onclick=()=>{
+      const code=m.querySelector("code"); copyText(code?code.innerText:"");
+      cp.textContent="已复制 ✓"; setTimeout(()=>cp.textContent="复制",1300);
+    };
+    document.addEventListener("keydown",e=>{
+      if(e.key==="Escape"&&m.classList.contains("show")) close();
+    });
+  }
+  m.classList.add("show");
+  try{ document.activeElement&&document.activeElement.blur(); }catch(_){}
+}
+function addTyping(){
+  const wrap=document.createElement("div");
+  wrap.className="msg ai";wrap.id="typing";
+  wrap.innerHTML='<div class="msg-ava">'+roleById(current).icon+'</div>'+
+    '<div class="bubble typing"><span></span><span></span><span></span></div>';
+  chatEl.appendChild(wrap);scrollBottom();return wrap;
+}
+/* 回到最新 */
+function updateJump(){
+  const away=chatEl.scrollHeight-chatEl.scrollTop-chatEl.clientHeight>160;
+  jumpBtn.classList.toggle("show",away);
+}
+chatEl.addEventListener("scroll",updateJump,{passive:true});
+jumpBtn.onclick=scrollBottom;
+
+/* =================================================================
+   角色切换
+   ================================================================= */
+function switchRole(id){
+  if(busy||id===current) return;
+  current=id;
+  const list=getSessions(); const s=list.find(x=>x.id===sid); if(s) s.roleId=id; setSessions(list);
+  try{ localStorage.setItem(ROLE_KEY,id); }catch(e){}
+  applyRoleTheme(id);
+  renderRoles(); renderHead(); renderChips(); renderNotice(); renderChat();
+  updateCtx();
+  if(isMobile()) closeDrawer();
+}
+
+/* =================================================================
+   多会话管理：每个会话独立历史 + 独立画像，可新建 / 切换 / 重命名 / 删除
+   ================================================================= */
+const sessionsEl=$("sessions"), newSessBtn=$("newSessBtn");
+function renderSessions(){
+  if(!sessionsEl) return;
+  sessionsEl.innerHTML="";
+  getSessions().forEach(s=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="session"+(s.id===sid?" active":"");
+    b.title="点击打开会话（含 5 个助手）";
+    b.innerHTML='<span class="sess-ico">🗂️</span>'+
+      '<span class="sess-name">'+esc(s.name)+'</span>'+
+      '<span class="sess-acts">'+
+        '<button type="button" class="sess-edit" data-act="rename" title="重命名">✎</button>'+
+        '<button type="button" class="sess-del" data-act="del" title="删除">🗑</button>'+
+      '</span>';
+    b.onclick=e=>{
+      const act=e.target.getAttribute("data-act");
+      if(act==="rename"){ e.stopPropagation(); renameSession(s.id); }
+      else if(act==="del"){ e.stopPropagation(); deleteSession(s.id); }
+      else switchSession(s.id);
+    };
+    sessionsEl.appendChild(b);
+  });
+}
+function switchSession(id){
+  const s=sessionById(id); if(!s||id===sid) return;
+  sid=id; current=s.roleId;
+  try{ localStorage.setItem(ACTIVE_SESSION_KEY,sid); }catch(e){}
+  applyRoleTheme(current);
+  renderSessions(); renderRoles(); renderHead(); renderChips(); renderNotice(); renderChat();
+  renderProfilePanel(); updateCtx();
+  if(isMobile()) closeDrawer();
+}
+function createSession(){
+  /* 每个新会话都是「包含全部 5 个助手」的容器，而非某个单一助手 */
+  const id="sess_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
+  const s=getSessions();
+  const idx=s.length+1;
+  s.push({id,name:"新会话 "+idx,roleId:"module1",createdAt:Date.now()});
+  setSessions(s);
+  switchSession(id);
+  toast("已新建会话（含 5 个助手）","ok");
+}
+function renameSession(id){
+  const list=getSessions(); const s=list.find(x=>x.id===id); if(!s) return;
+  const v=prompt("将会话重命名为：",s.name);
+  if(v==null) return;
+  const name=v.trim(); if(!name) return;
+  s.name=name; setSessions(list); renderSessions();
+  if(id===sid){ renderHead(); }
+}
+function deleteSession(id){
+  const s=getSessions();
+  if(s.length<=1){ toast("至少保留一个会话，无法删除","err"); return; }
+  const cur=sessionById(id);
+  if(!confirm("确定删除会话「"+(cur?cur.name:id)+"」吗？\n该会话的对话记录与用户画像将一并清除，且不可恢复。")) return;
+  try{ localStorage.removeItem("chat_history_"+id); }catch(_){}
+  try{ localStorage.removeItem(profileKey(id)); }catch(_){}
+  const ns=s.filter(x=>x.id!==id); setSessions(ns);
+  if(sid===id){
+    sid=ns[0].id; current=ns[0].roleId;
+    try{ localStorage.setItem(ACTIVE_SESSION_KEY,sid); }catch(e){}
+  }
+  applyRoleTheme(current);
+  renderSessions(); renderRoles(); renderHead(); renderChips(); renderNotice(); renderChat();
+  renderProfilePanel(); updateCtx();
+  toast("会话已删除","ok");
+}
+if(newSessBtn) newSessBtn.onclick=()=>createSession();
+
+/* ---------- 上下文用量指示 ---------- */
+function updateCtx(){
+  const el=$("ctxInfo"); if(!el) return;
+  const n=getHist(sid,current).length;
+  el.textContent="上下文 "+n+"/"+MAX_MSG+" 条";
+  el.classList.toggle("hot",n>=MAX_MSG-4);
+  el.title=n>=MAX_MSG-4?"上下文即将写满，最早的消息会被截断":"当前会话将携带的历史消息条数";
+}
+
+/* =================================================================
+   连接诊断（OpenAI 兼容 /v1/models）
+   ================================================================= */
+function setStatus(state,text){
+  connTipEl.className="status"+(state?" "+state:"");
+  connTipEl.querySelector(".txt").textContent=text;
+}
+/* 云端 / 本地通用的最小对话探针：很多云厂商没有 /models 端点
+   （智谱、火山方舟等），只能靠真发一次 max_tokens:1 来验证 Key 与模型 */
+async function probeChat(url,mid,c,ms){
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(),ms||25000);
+  try{
+    const r=await fetch(url,{
+      method:"POST",headers:buildHeaders(c),signal:ctrl.signal,
+      body:JSON.stringify({model:mid,messages:[{role:"user",content:"ping"}],stream:false,max_tokens:1})
+    });
+    const txt=await r.text();
+    let d=null; try{ d=JSON.parse(txt); }catch(_){}
+    return {ok:r.ok,status:r.status,data:d,text:txt};
+  }finally{ clearTimeout(to); }
+}
+function pickErrMsg(d,txt){
+  let m="";
+  const e=d&&d.error;
+  if(e) m=(e.message||e.code||(typeof e==="string"?e:""))||"";
+  if(!m&&d&&d.message) m=d.message;
+  if(!m&&txt) m=String(txt).replace(/\s+/g," ").slice(0,180);
+  return m;
+}
+function isCorsError(e){
+  const s=String((e&&e.message)||e);
+  return (e&&e.name==="TypeError")||/Failed to fetch|NetworkError|Load failed|CORS|Network request/i.test(s);
+}
+async function checkConnection(silent,apiUrl,model,statusEl){
+  if(busy&&!statusEl){   // 生成中不并发检测（弹窗内测试不受限），避免状态灯被检测结果覆盖
+    if(!silent) toast("正在生成中，请等当前回答完成后再检测");
+    return false;
+  }
+  const c=cfg();
+  const isCloud=c.mode!=="local";
+  const url=String(apiUrl||c.apiUrl).trim();
+  const mid=String(model||c.model).trim();
+  const put=(cls,msg)=>{
+    if(statusEl){ statusEl.className="modal-status"+(cls?" "+cls:""); statusEl.textContent=msg; }
+    else if(!silent) toast(msg,cls==="err"?"err":cls==="ok"?"ok":"");
+  };
+  setStatus("busy","正在检测…");
+  if(statusEl){ statusEl.className="modal-status"; statusEl.textContent="正在检测…"; }
+
+  /* 前置判断：配置没填全就不浪费一次网络请求，直接说清缺什么 */
+  if(!url){
+    setStatus("err","未配置");
+    put("err","还没有确定接口地址。\n云端模式：在「服务商」里选一家就会自动填好。\n本地模式：填 LM Studio / Ollama 的地址。");
+    return false;
+  }
+  if(isCloud&&!c.apiKey){
+    setStatus("err","缺少 Key");
+    put("err","云端模式必须有 API Key（只有本地模式才能留空）。\n\n去哪拿：点「服务商」下面那条说明里的申请地址 → 登录 → 创建 API Key → 粘贴到上面的输入框。\n\n不想折腾？点左下角「🎬 演示模式」可以先完整体验一遍。");
+    return false;
+  }
+
+  const finishOk=(hit,extra)=>{
+    setStatus("ok","已连接 · "+hit);
+    const thinkTip=/think|thinking|reasoner|qwen3|r1/i.test(hit)
+      ?"\n\n💡 这是思考型模型：会先输出折叠的思考过程再给答案，属于正常现象。"
+      :"";
+    put("ok","✅ 连接正常\n\n使用方式："+(isCloud?"云端 AI · "+c.preset.name:"本地模型")+
+      "\n接口地址："+url+"\n模型 ID："+hit+(extra?"\n"+extra:"")+"\n\n流式输出已启用。"+thinkTip);
+    return true;
+  };
+
+  const modelsUrl=deriveModelsUrl(url);
+
+  /* ① 有 /models 的厂商：能列出模型并核对模型名，体验最好 */
+  let ids=null, modelsCors=false;
+  try{
+    const ctrl=new AbortController();
+    const to=setTimeout(()=>ctrl.abort(),6000);
+    let r;
+    try{
+      r=await fetch(modelsUrl,{method:"GET",headers:buildHeaders(c),signal:ctrl.signal});
+    }finally{ clearTimeout(to); }
+    if(r.ok){
+      const d=await r.json();
+      ids=((d&&d.data)||[]).map(x=>x&&(x.id||x.name)).filter(Boolean);
+      availableModels=ids; renderAttBar();   // 供视觉模型检测使用
+    }
+  }catch(e){ if(isCorsError(e)) modelsCors=true; }
+
+  if(ids&&ids.length){
+    const hit=ids.find(x=>x===mid)||ids.find(x=>x.split(":")[0]===mid.split(":")[0])||
+      ids.find(x=>normModelId(x)===normModelId(mid));   // 宽松匹配：忽略大小写与分隔符差异
+    if(!hit){
+      setStatus("err","已连通 · 无 "+mid);
+      put("err","✅ 服务已连通（Key 有效）\n❌ 但找不到模型「"+mid+"」\n\n当前可用模型（前 20 个）：\n  "+
+        ids.slice(0,20).join("\n  ")+"\n\n请把「模型 ID」改成上面任意一个后保存。");
+      return false;
+    }
+    return finishOk(hit,"可用模型数："+ids.length);
+  }
+
+  /* ② 没有 /models（智谱、方舟…）→ 真发一次 1 token 的请求来验证 */
+  try{
+    const pr=await probeChat(url,mid,c,25000);
+    if(pr.ok) return finishOk(mid,"（该厂商不提供模型列表，已用一次真实请求验证通过）");
+    const em=pickErrMsg(pr.data,pr.text);
+    if(pr.status===401||pr.status===403){
+      setStatus("err","Key 无效或权限不足");
+      put("err","❌ 鉴权失败（HTTP "+pr.status+"）\n\n"+em+
+        "\n\n① Key 是否复制完整（注意首尾空格与换行）\n② Key 与「接口地址」是否属于同一家服务商\n③ 该 Key 是否已开通这个模型");
+      return false;
+    }
+    if(pr.status===404){
+      setStatus("err","模型或地址不存在");
+      put("err","❌ 404 · 找不到接口或模型\n\n"+em+"\n\n① 检查模型 ID（当前："+mid+"）\n② 接口地址是否与所选服务商匹配\n   智谱 → /api/paas/v4/chat/completions\n   通义 → /compatible-mode/v1/chat/completions");
+      return false;
+    }
+    if(pr.status===429){
+      setStatus("err","限流 / 额度用尽");
+      put("err","❌ HTTP 429：触发限流或免费额度用完\n\n"+em+"\n\n① 等一分钟再试\n② 换同厂商另一个免费模型\n③ 或在「服务商」里换一家");
+      return false;
+    }
+    setStatus("err","连接失败");
+    put("err","❌ 连接失败（HTTP "+pr.status+"）\n\n"+em);
+    return false;
+  }catch(e){
+    const aborted=(e&&e.name==="AbortError");
+    setStatus("err",aborted?"连接超时":"连接失败");
+    if(modelsCors||isCorsError(e)){
+      put("err","❌ 被浏览器拦下了（跨域 / CORS）\n\n"+url+
+        "\n\n这通常不是 Key 的问题，而是该厂商不允许网页直接调用接口。\n\n"+
+        (isCloud
+          ? "三种解法：\n① 换一家支持浏览器直连的服务商 —— 硅基流动 / 阿里百炼 / 魔搭 / OpenRouter（设置里标 ✅）\n② 用附带的中转脚本：python proxy.py，再把接口地址改成 http://localhost:8787/v1/chat/completions\n③ 自己部署时，让服务端把本页域名加入允许来源"
+          : "解法：\n① LM Studio：Settings → Server → 勾选 Enable CORS\n② Ollama：OLLAMA_ORIGINS=* ollama serve\n③ 用 python3 -m http.server 打开本页，别双击 file://\n④ 代理软件把 localhost 设为直连"));
+      return false;
+    }
+    put("err","❌ 无法连接：\n"+url+"\n\n错误："+(aborted?"请求超时（25 秒无响应）":((e&&e.message)||e))+
+      (isCloud
+        ? "\n\n排查：① 浏览器能否打开该厂商官网 ② 接口地址是否与所选服务商一致 ③ 校园网/公司网是否拦截了 API 域名"
+        : "\n\n排查：① 本地推理服务是否已启动 ② 端口 1234 / 11434 ③ 跨域设置 ④ 代理的 localhost 直连"));
+    return false;
+  }
+}
+function failHint(err,url,model){
+  const isCloud=cfg().mode!=="local";
+  const m=String((err&&err.message)||err);
+  if(isCloud){   /* 云端：错误码基本能直接指向原因，不写一堆无关排查 */
+    if(/^HTTP 401|^HTTP 403|Unauthorized|invalid.*key|api.?key/i.test(m))
+      return "排查建议：\n① Key 是否复制完整（去掉首尾空格和换行）\n② Key 与「接口地址」是否属于同一家服务商\n③ 该 Key 有没有开通这个模型\n④ 点左下角状态灯可一键重测";
+    if(/^HTTP 429|rate.?limit|quota|insufficient|余额/i.test(m))
+      return "免费额度或频率到顶了：\n① 等一分钟再试\n② 换同厂商另一个免费模型\n③ 或在设置里换一家服务商";
+    if(/^HTTP 404/i.test(m))
+      return "排查建议：\n① 模型 ID 拼写（当前："+model+"）\n② 接口地址与服务商是否匹配\n③ 「测试连接」会列出可用模型";
+    if(/^HTTP 5\d\d/i.test(m)) return "对方服务器异常（不是你的问题）：稍后重试，或换一家服务商。";
+    if(/Failed to fetch|NetworkError|Load failed|fetch|Network request/i.test(m))
+      return "多半是跨域被拦或网络不通：\n① 换一家支持浏览器直连的服务商（硅基流动 / 阿里百炼 / 魔搭）\n② 或用附带的中转脚本跑 python proxy.py，地址填 http://localhost:8787/v1/chat/completions\n③ 确认浏览器能打开该厂商官网（校园网可能拦截 API 域名）";
+    if((err&&err.name)==="AbortError"||/aborted|timeout/i.test(m))
+      return "请求超时：\n① 免费模型排队会慢，重试一次\n② 换一个参数量更小的模型\n③ 检查网络是否稳定";
+    return "点左下角状态灯，或用「⚙ AI 设置 → 测试连接」定位问题。";
+  }
+  if((err&&err.name)==="AbortError"||/aborted|timeout/i.test(m))
+    return "可能原因：\n① 模型首次加载较慢（7B 冷启动通常 10–60 秒）\n② 显存不足导致层卸载到内存，速度骤降\n③ 服务已卡死，重启后重试";
+  if(/Failed to fetch|NetworkError|Load failed|fetch|Network request/i.test(m))
+    return "排查建议：\n① 确认本地服务已启动，核对接口地址："+url+"\n② 端口：LM Studio 1234 / Ollama 11434\n③ 跨域被拦截：LM Studio 勾选 Enable CORS；Ollama 用 OLLAMA_ORIGINS=* 启动\n④ 用 python3 -m http.server 打开本页，不要双击 file://\n⑤ 点击左下角状态灯可一键检测";
+  if(/404|not found|不存在/i.test(m))
+    return "排查建议：\n① 模型 ID 须与本地服务列出的名称完全一致（当前："+model+"）\n② 接口地址需以 /v1/chat/completions 结尾\n③ 「AI 设置 → 测试连接」可列出全部可用模型";
+  if(/5\d\d/.test(m)) return "服务端异常：请查看本地推理服务的日志输出。";
+  return "点击左下角状态灯，或用「⚙ AI 设置 → 测试连接」定位问题。";
+}
+
+/* =================================================================
+   附件系统：文件 / 图片（零依赖解析，无外部库）
+   ================================================================= */
+const ATT_MAX=6;            // 单条消息最多附件数
+const ATT_TEXT_MAX=8000;    // 单文件提取文本上限
+const ATT_TOTAL_MAX=20000;  // 单条消息全部附件文本合计上限
+let attachments=[];         // 待发附件
+let availableModels=[];     // checkConnection 拉取的服务端模型列表
+let visionOverride=null;    // 用户选择的「仅本次使用」视觉模型
+
+/* ---------- 视觉模型检测（名称启发式） ---------- */
+function isVisionModel(id){ return /vl|vision|llava|minicpm-v|pixtral|internvl|qwen2-vl|gemma-?3|gpt-4o/i.test(String(id||"")); }
+/* 模型名宽松归一：忽略大小写与空格/冒号/点/横线/下划线分隔差异，
+   使 "Qwen2.5 Coder 7B Instruct" 能匹配 "qwen2.5-coder:7b-instruct" */
+function normModelId(s){ return String(s||"").toLowerCase().replace(/[\s:._\-]+/g,""); }
+function findVisionModel(){ return availableModels.find(isVisionModel)||null; }
+
+/* ---------- 图片压缩：最长边 1024，JPEG q0.82 ---------- */
+function compressImage(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file);
+    const img=new Image();
+    img.onload=()=>{
+      URL.revokeObjectURL(url);
+      const max=1024;
+      let w=img.naturalWidth,h=img.naturalHeight;
+      const scale=Math.min(1,max/Math.max(w,h));
+      w=Math.round(w*scale); h=Math.round(h*scale);
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      res(cv.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); rej(new Error("图片解码失败")); };
+    img.src=url;
+  });
+}
+
+/* =================================================================
+   零依赖文件提取器
+   ================================================================= */
+/* ---------- 最小 ZIP 读取器（DOCX/XLSX 本质是 ZIP） ---------- */
+async function zipEntries(buf){
+  const dv=new DataView(buf);
+  let eocd=-1;
+  for(let i=buf.byteLength-22;i>=0;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+  if(eocd<0) throw new Error("不是有效的 Office 文件（ZIP 结构缺失）");
+  const count=dv.getUint16(eocd+10,true);
+  let off=dv.getUint32(eocd+16,true);
+  const out=[];
+  for(let i=0;i<count;i++){
+    if(off+46>buf.byteLength||dv.getUint32(off,true)!==0x02014b50) break;
+    const method=dv.getUint16(off+10,true);
+    const csize=dv.getUint32(off+20,true);
+    const namelen=dv.getUint16(off+28,true);
+    const extralen=dv.getUint16(off+30,true);
+    const commentlen=dv.getUint16(off+32,true);
+    const localOff=dv.getUint32(off+42,true);
+    const name=new TextDecoder().decode(new Uint8Array(buf,off+46,namelen));
+    out.push({name,method,csize,localOff});
+    off+=46+namelen+extralen+commentlen;
+  }
+  return out;
+}
+async function zipRead(buf,e){
+  const dv=new DataView(buf);
+  const off=e.localOff;
+  if(dv.getUint32(off,true)!==0x04034b50) throw new Error("ZIP 结构损坏");
+  const namelen=dv.getUint16(off+26,true), extralen=dv.getUint16(off+28,true);
+  const data=new Uint8Array(buf,off+30+namelen+extralen,e.csize);
+  if(e.method===0) return data;
+  if(e.method===8){
+    const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  throw new Error("不支持的压缩方式");
+}
+function unescXml(s){
+  return s.replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&#(\d+);/g,(_,n)=>String.fromCharCode(+n)).replace(/&amp;/g,"&");
+}
+/* ---------- DOCX ---------- */
+async function extractDocx(buf){
+  const entries=await zipEntries(buf);
+  const e=entries.find(x=>x.name==="word/document.xml");
+  if(!e) throw new Error("DOCX 中缺少 document.xml");
+  const xml=new TextDecoder("utf-8").decode(await zipRead(buf,e));
+  const text=xml
+    .replace(/<w:tab\b[^>]*\/?>/g,"\t")
+    .replace(/<w:br\b[^>]*\/?>/g,"\n")
+    .replace(/<\/w:p>/g,"\n")
+    .replace(/<[^>]+>/g,"");
+  return unescXml(text).replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+}
+/* ---------- XLSX ---------- */
+async function extractXlsx(buf){
+  const entries=await zipEntries(buf);
+  let shared=[];
+  const ss=entries.find(x=>x.name==="xl/sharedStrings.xml");
+  if(ss){
+    const xml=new TextDecoder("utf-8").decode(await zipRead(buf,ss));
+    shared=[...xml.matchAll(/<si[\s\S]*?<\/si>/g)].map(m=>
+      [...m[0].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map(t=>unescXml(t[1])).join(""));
+  }
+  const sheets=entries.filter(x=>/^xl\/worksheets\/sheet\d+\.xml$/.test(x.name)).slice(0,3);
+  if(!sheets.length) throw new Error("XLSX 中找不到工作表");
+  const out=[];
+  for(const sh of sheets){
+    const xml=new TextDecoder("utf-8").decode(await zipRead(buf,sh));
+    for(const row of xml.matchAll(/<row[\s\S]*?<\/row>/g)){
+      const cells=[];
+      for(const c of row[0].matchAll(/<c\b([^>]*)>([\s\S]*?)<\/c>|<c\b([^>]*)\/>/g)){
+        const attrs=c[1]||c[3]||"", inner=c[2]||"";
+        const isShared=/\bt="s"/.test(attrs);
+        const vm=inner.match(/<v[^>]*>([\s\S]*?)<\/v>/);
+        if(!vm){ cells.push(""); continue; }
+        const v=vm[1];
+        cells.push(isShared?(shared[+v]??""):unescXml(v));
+      }
+      if(cells.some(x=>x!=="")) out.push(cells.join("\t"));
+      if(out.join("\n").length>ATT_TEXT_MAX) break;
+    }
+  }
+  return out.join("\n").trim();
+}
+/* ---------- PDF（提取文字层；扫描件无文字层会报错） ---------- */
+/* ASCII85 解码（reportlab 等生成的 PDF 常用 ASCII85+Flate 双重编码） */
+function ascii85Decode(s){
+  s=s.replace(/\s/g,"");
+  const end=s.indexOf("~>"); if(end>=0) s=s.slice(0,end);
+  const out=[];
+  let i=0;
+  while(i<s.length){
+    if(s[i]==="z"){ out.push(0,0,0,0); i++; continue; }
+    const group=s.slice(i,i+5);
+    let v=0;
+    for(let j=0;j<5;j++){
+      const c=j<group.length?(group.charCodeAt(j)-33):84;   // 短组按 'u' 补齐
+      v=v*85+c;
+    }
+    out.push(Math.floor(v/16777216)%256,Math.floor(v/65536)%256,Math.floor(v/256)%256,v%256);
+    if(group.length<5) out.length-= (5-group.length);        // 短组只保留前 n-1 字节
+    i+=group.length;
+  }
+  return new Uint8Array(out);
+}
+async function inflateRaw(data){
+  const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+function decodePdfString(tok){
+  if(tok[0]==="<"){
+    const hex=tok.slice(1,-1).replace(/\s/g,"");
+    let s="";
+    for(let i=0;i+1<hex.length;i+=2) s+=String.fromCharCode(parseInt(hex.substr(i,2),16));
+    return s;
+  }
+  return tok.slice(1,-1).replace(/\\([nrtbf()\\]|[0-7]{1,3})/g,(_,g)=>{
+    if(g==="n")return "\n"; if(g==="r")return "\r"; if(g==="t")return "\t";
+    if(g==="b")return "\b"; if(g==="f")return "\f";
+    if(g==="(")return "("; if(g===")")return ")"; if(g==="\\")return "\\";
+    return String.fromCharCode(parseInt(g,8));
+  });
+}
+function parsePdfTextOps(s){
+  const chunks=[];
+  const re=/\[[^\[\]]*\]\s*TJ|(?:\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>)\s*Tj|\b(?:Td|TD|T\*)\b/g;
+  let m;
+  while((m=re.exec(s))){
+    if(/^(Td|TD|T\*)$/.test(m[0])){ chunks.push("\n"); continue; }
+    const strRe=/\((?:\\.|[^\\()])*\)|<[0-9A-Fa-f\s]+>/g;
+    let sm,line="";
+    while((sm=strRe.exec(m[0]))) line+=decodePdfString(sm[0]);
+    if(line) chunks.push(line);
+  }
+  return chunks.join("");
+}
+async function extractPdf(buf){
+  const bytes=new Uint8Array(buf);
+  const latin=new TextDecoder("latin1").decode(bytes);
+  const texts=[];
+  const re=/stream\r?\n/g;
+  let m;
+  while((m=re.exec(latin))){
+    const start=m.index+m[0].length;
+    const end=latin.indexOf("endstream",start);
+    if(end<0) break;
+    const dictStart=latin.lastIndexOf("<<",m.index);
+    const dict=latin.slice(Math.max(0,dictStart),m.index);
+    let data=bytes.slice(start,end);
+    /* 去掉 endstream 前的换行字节，避免干扰解码 */
+    let dlen=data.length;
+    while(dlen>0&&(data[dlen-1]===10||data[dlen-1]===13)) dlen--;
+    data=data.slice(0,dlen);
+    let raw;
+    try{
+      if(/ASCII85Decode|\/A85\b/.test(dict))
+        data=ascii85Decode(new TextDecoder("latin1").decode(data));
+      if(/FlateDecode|\/Fl\b/.test(dict))
+        data=await inflateRaw(data);
+      raw=new TextDecoder("latin1").decode(data);
+    }catch(_){ re.lastIndex=end+9; continue; }
+    const t=parsePdfTextOps(raw);
+    if(t.trim()) texts.push(t);
+    re.lastIndex=end+9;
+  }
+  const joined=texts.join("\n").replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+  if(joined.replace(/\s/g,"").length<4)
+    throw new Error("未提取到文字（可能是扫描版 PDF，无文字层）");
+  return joined;
+}
+/* ---------- 统一入口 ---------- */
+async function extractFileText(file){
+  const ext=(file.name.split(".").pop()||"").toLowerCase();
+  if(ext==="pdf")  return extractPdf(await file.arrayBuffer());
+  if(ext==="docx") return extractDocx(await file.arrayBuffer());
+  if(ext==="xlsx") return extractXlsx(await file.arrayBuffer());
+  return await file.text();
+}
+
+/* =================================================================
+   附件暂存与渲染
+   ================================================================= */
+function fmtSize(n){ return n>1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB"; }
+function addFiles(fileList){
+  const files=[...(fileList||[])];
+  if(!files.length) return;
+  let added=0;
+  for(const f of files){
+    if(attachments.length>=ATT_MAX){ toast("最多添加 "+ATT_MAX+" 个附件","err"); break; }
+    const att={id:"a"+Date.now()+Math.random().toString(36).slice(2,6), name:f.name, size:f.size, status:"parsing"};
+    attachments.push(att); added++;
+    if(f.type.startsWith("image/")){
+      att.kind="image";
+      compressImage(f)
+        .then(d=>{ att.dataUrl=d; att.status="ready"; updateAttChip(att); })
+        .catch(e=>{ att.status="error"; att.errMsg=e.message; updateAttChip(att); });
+    }else{
+      att.kind="file";
+      extractFileText(f)
+        .then(t=>{
+          t=String(t||"").replace(/\r\n?/g,"\n").trim();
+          if(t.length>ATT_TEXT_MAX){ t=t.slice(0,ATT_TEXT_MAX)+"\n…（已截断）"; }
+          if(!t) throw new Error("文件内容为空");
+          att.text=t; att.status="ready"; updateAttChip(att);
+        })
+        .catch(e=>{ att.status="error"; att.errMsg=(e&&e.message)||"解析失败"; updateAttChip(att); });
+    }
+  }
+  if(added) renderAttBar();
+}
+function removeAtt(id){
+  attachments=attachments.filter(a=>a.id!==id);
+  if(!attachments.some(a=>a.kind==="image")) visionOverride=null;
+  renderAttBar();
+}
+/* ---------- 附件条渲染：定点更新，避免每次解析完成都全量重绘造成卡顿 ---------- */
+function updateAttChip(a){
+  const chip=$("attBar").querySelector('[data-id="'+a.id+'"]');
+  if(!chip) return;
+  chip.classList.toggle("err",a.status==="error");
+  chip.classList.toggle("parsing",a.status==="parsing");
+  const sub=chip.querySelector(".att-sub");
+  if(sub) sub.textContent=a.status==="parsing"?"解析中…"
+    :a.status==="error"?("⚠ "+(a.errMsg||"解析失败"))
+    :a.kind==="image"?fmtSize(a.size)+" · 图片"
+    :fmtSize(a.size)+" · 已提取 "+(a.text?a.text.length:0)+" 字";
+  if(a.kind==="image"&&a.dataUrl&&!chip.querySelector(".att-thumb")){
+    chip.querySelector(".att-ico")?.replaceWith(Object.assign(document.createElement("img"),{className:"att-thumb",src:a.dataUrl,alt:""}));
+    const th=chip.querySelector(".att-thumb");
+    if(th) th.onclick=()=>zoomImg(a.dataUrl);
+  }
+}
+function renderAttBar(){
+  const bar=$("attBar");
+  bar.innerHTML="";
+  if(!attachments.length){ bar.classList.remove("show"); return; }
+  bar.classList.add("show");
+  for(const a of attachments){
+    const chip=document.createElement("div");
+    chip.dataset.id=a.id;
+    chip.className="att-chip"+(a.status==="error"?" err":a.status==="parsing"?" parsing":"");
+    let media="";
+    if(a.kind==="image"){
+      media=a.dataUrl
+        ?'<img class="att-thumb" src="'+a.dataUrl+'" alt="">'
+        :'<span class="att-ico">🖼</span>';
+    }else{
+      const ext=(a.name.split(".").pop()||"").toLowerCase();
+      media='<span class="att-ico">'+({pdf:"📕",docx:"📘",xlsx:"📊"}[ext]||"📄")+'</span>';
+    }
+    const sub=a.status==="parsing"?"解析中…"
+      :a.status==="error"?("⚠ "+(a.errMsg||"解析失败"))
+      :a.kind==="image"?fmtSize(a.size)+" · 图片"
+      :fmtSize(a.size)+" · 已提取 "+(a.text?a.text.length:0)+" 字";
+    chip.innerHTML=media+
+      '<span class="att-info"><span class="att-name">'+esc(a.name)+'</span><div class="att-sub">'+esc(sub)+'</div></span>'+
+      '<button class="att-x" title="移除">✕</button>';
+    chip.querySelector(".att-x").onclick=()=>removeAtt(a.id);
+    const thumb=chip.querySelector(".att-thumb");
+    if(thumb) thumb.onclick=()=>zoomImg(a.dataUrl);
+    bar.appendChild(chip);
+  }
+  /* 图片 + 非视觉模型 → 提供「仅本次用视觉模型」入口或给出指引 */
+  if(attachments.some(a=>a.kind==="image")&&!isVisionModel(cfg().model)){
+    const vm=findVisionModel();
+    const b=document.createElement("button");
+    b.className="att-vision-btn";
+    if(vm){
+      b.textContent=visionOverride?("✓ 本次将用 "+vm+" 发送（点击取消）"):("👁 当前模型看不懂图片，仅本次改用 "+vm);
+      b.onclick=()=>{ visionOverride=visionOverride?null:vm; renderAttBar(); };
+    }else{
+      b.textContent="👁 当前模型不支持图片，请在本地服务中加载视觉模型（如 qwen2.5-vl）";
+      b.onclick=()=>toast("检测到模型列表："+(availableModels.join("、")||"未知")+"\n请加载视觉模型后重试","err");
+    }
+    bar.appendChild(b);
+  }
+}
+/* ---------- 图片放大 ---------- */
+function zoomImg(src){ $("imgMaskImg").src=src; $("imgMask").classList.add("show"); }
+$("imgMask").onclick=e=>{ if(e.target===$("imgMask")) $("imgMask").classList.remove("show"); };
+
+/* =================================================================
+   消息内容组装：附件文本注入 + vision content parts
+   ================================================================= */
+function buildApiContent(m,visionModel){
+  const atts=m.atts||[];
+  const imgs=visionModel?atts.filter(a=>a.kind==="image"&&a.dataUrl):[];
+  const files=atts.filter(a=>a.kind==="file"&&a.text);
+  let text=m.content||"";
+  let budget=ATT_TOTAL_MAX;
+  for(const f of files){
+    let t=f.text;
+    if(t.length>budget){ t=t.slice(0,Math.max(0,budget))+"\n…（已截断）"; }
+    budget-=t.length;
+    if(t) text+="\n\n【附件："+f.name+"】\n"+t;
+  }
+  /* 历史中较早的图片降级为占位文本，避免请求体膨胀 */
+  for(const im of atts.filter(a=>a.kind==="image"&&!imgs.includes(a)))
+    text+="\n\n[图片："+im.name+"]";
+  if(imgs.length){
+    const parts=[];
+    if(text.trim()) parts.push({type:"text",text});
+    imgs.forEach(im=>parts.push({type:"image_url",image_url:{url:im.dataUrl}}));
+    return parts;
+  }
+  return text;
+}
+
+/* =================================================================
+   流式请求
+   ================================================================= */
+async function ask(userText,opts){
+  if(busy){ toast("正在生成中，请等待完成或点击停止","err"); return; }
+  const skipUser=!!(opts&&opts.skipUser);   // 重新生成时：提问气泡已在界面与历史中，不再重复插入
+  const atts=skipUser?((opts&&opts.atts)||[]):attachments.slice();
+
+  /* 附件发送前置检查 */
+  if(atts.some(a=>a.status==="parsing")){ toast("附件还在解析中，请稍候","err"); return; }
+  const imgs=atts.filter(a=>a.kind==="image"&&a.status==="ready"&&a.dataUrl);
+  const files=atts.filter(a=>a.kind==="file"&&a.status==="ready"&&a.text);
+
+  /* 允许只发附件不带文字：自动补一条默认指令 */
+  if(!userText){
+    if(!imgs.length&&!files.length) return;
+    userText=imgs.length?"请描述并分析这张图片中的内容。":"请阅读附件内容并给出总结与解读。";
+  }
+
+  const c=cfg();
+  let useModel=c.model;
+  if(imgs.length&&!isVisionModel(c.model)&&!isDemo()){
+    const vm=visionOverride||findVisionModel();
+    if(vm) useModel=vm;
+    else{
+      toast("当前模型「"+c.model+"」不支持图片输入。\n"+
+        (c.mode==="local"
+          ? "请在本地服务加载视觉模型（如 qwen2.5-vl），或移除图片后发送。"
+          : "云端请换一个带 VL 的视觉模型（如 Qwen/Qwen2.5-VL-72B-Instruct、qwen-vl-plus、glm-4v-flash），或移除图片后发送。"),
+        "err");
+      return;
+    }
+  }
+
+  if(!getHist(sid,current).length) chatEl.innerHTML="";   // 移除欢迎态
+  if(!skipUser) addBubble("user",userText,true,atts);
+  attachments=[]; visionOverride=null; renderAttBar();
+  resetInputHeight();
+  busy=true; setSendMode("stop");
+
+  const sys=SP[current]+PROFILE_INSTRUCTION+"\n\n"+buildProfileBlock(current);
+  const msgs=[{role:"system",content:sys}];
+  const histForApi=getHist(sid,current).filter(m=>m.role!=="system").slice(-MAX_MSG);
+  histForApi.forEach((m,i)=>{
+    const isLast=(i===histForApi.length-1);
+    msgs.push({role:m.role,content:buildApiContent(m,isLast&&imgs.length?useModel:null)});
+  });
+
+  currentCrisis=CRISIS_RE.test(userText);   // 用户输入命中高危词 → 回答末尾追加求助资源卡
+  const typing=addTyping();
+  let bubble=null, full="", lastPaint=0, usage=null;
+  let thinkRaw="";   // 思考型模型的 reasoning_content（qwen3-vl-thinking 等）
+  const rawFull=()=>thinkRaw?("<think>"+thinkRaw+"</think>"+full):full;
+  const t0=performance.now();   // 生成耗时统计
+
+  abortCtrl=new AbortController();
+  let idle=null;
+  const bumpIdle=()=>{ clearTimeout(idle); idle=setTimeout(()=>abortCtrl.abort(),IDLE_TIMEOUT); };
+  bumpIdle();
+
+  try{
+    const headers=buildHeaders(c);   // 云端 / 本地共用：Authorization + OpenRouter 来源标识
+
+    const resp = isDemo()
+      ? makeDemoResponse(current,userText)
+      : await fetch(c.apiUrl,{
+          method:"POST",headers,
+          body:JSON.stringify({
+            model:useModel,messages:msgs,stream:true,
+            temperature:parseNum(c.temperature,0.6),
+            top_p:parseNum(c.topP,0.9)
+          }),
+          signal:abortCtrl.signal
+        });
+    bumpIdle();
+    if(!resp.ok){
+      let detail="";
+      try{const e=await resp.json();detail=(e&&e.error&&(e.error.message||e.error))||"";if(detail&&typeof detail!=="string")detail=JSON.stringify(detail);}catch(_){}
+      throw new Error("HTTP "+resp.status+(detail?" · "+detail:""));
+    }
+
+    const ctype=(resp.headers.get("content-type")||"").toLowerCase();
+    if(ctype.includes("application/json")||!resp.body){
+      const data=await resp.json();
+      const msg=(data&&data.choices&&data.choices[0]&&data.choices[0].message)||{};
+      full=msg.content||"";
+      if(typeof msg.reasoning_content==="string") thinkRaw+=msg.reasoning_content;
+      typing.remove();
+      bubble=addBubble("ai","",false);
+      full=extractAndUpdateProfile(rawFull());   // 修正：非流式分支此前漏掉了画像抽取
+      finalizeBubble(bubble,full,currentCrisis);
+      if(data&&data.usage) usage=data.usage;
+      setStats(bubble,t0,usage);
+    }else{
+      const reader=resp.body.getReader();
+      const dec=new TextDecoder("utf-8");
+      let buf="";
+      while(true){
+        const {done,value}=await reader.read();
+        if(done)break;
+        bumpIdle();
+        buf+=dec.decode(value,{stream:true});
+        /* 防护：单行异常过长时截断，避免内存无限增长（正常 SSE 行 < 2KB） */
+        if(buf.length>512000){ buf=buf.slice(-256000); }
+        const parts=buf.split("\n");
+        buf=parts.pop();
+        for(const line of parts){
+          const s=line.trim();
+          if(!s||s.startsWith(":")||!s.startsWith("data:")) continue;
+          const payload=s.slice(5).trim();
+          if(payload==="[DONE]") continue;
+          let j; try{ j=JSON.parse(payload); }catch(_){ continue; }
+          if(j&&j.usage) usage=j.usage;   // 部分服务在末尾 chunk 携带 token 用量
+          const ch0=(j&&j.choices&&j.choices[0])||null;
+          /* 思考型模型：reasoning_content 单独收集，折叠进思考框 */
+          const rd=ch0&&ch0.delta&&typeof ch0.delta.reasoning_content==="string"?ch0.delta.reasoning_content:"";
+          if(rd){
+            if(!bubble){ try{typing.remove();}catch(_){} bubble=addBubble("ai","",false); }
+            thinkRaw+=rd;
+            const now=Date.now();
+            if(now-lastPaint>80){   /* 思考内容节流 80ms，减少 DOM 重绘 */
+              lastPaint=now;
+              const tb=bubble.querySelector(".think-body");
+              if(tb){ tb.textContent=thinkRaw; scrollBottom(); }   /* 增量更新：只刷新思考体 */
+              else{ bubble.innerHTML=renderAssistant(rawFull())+'<span class="caret"></span>'; scrollBottom(); }
+            }
+            continue;
+          }
+          const delta=ch0?((ch0.delta&&typeof ch0.delta.content==="string")?ch0.delta.content:(ch0.text||"")):"";
+          if(!delta) continue;
+          if(!bubble){ try{typing.remove();}catch(_){} bubble=addBubble("ai","",false); }
+          full+=delta;
+          const now=Date.now();
+          if(now-lastPaint>80){   /* 正文节流 80ms，减少高频 DOM 操作 */
+            lastPaint=now;
+            bubble.innerHTML=renderAssistant(stripForDisplay(rawFull()))+'<span class="caret"></span>';
+            bindCodeCopy(bubble); scrollBottom();
+          }
+        }
+      }
+      if(!bubble){ try{typing.remove();}catch(_){} bubble=addBubble("ai","",false); }
+        full=extractAndUpdateProfile(rawFull());
+        finalizeBubble(bubble,full,currentCrisis);
+        setStats(bubble,t0,usage);
+    }
+
+    try{typing.remove();}catch(_){}   // 安全移除（可能已被流式阶段移除）
+    setStatus("ok","已连接 · "+(useModel!==c.model?useModel+"（本条）":c.model));
+    if(full){
+      const h=getHist(sid,current);
+      const last=h[h.length-1];
+      if(!(last&&last.role==="assistant"&&last.content===full)){ h.push({role:"assistant",content:full}); setHist(sid,current,h); }
+    }
+  }catch(err){
+    try{ typing.remove(); }catch(_){}
+    if(bubble&&bubble.parentNode){
+      if(full.trim()){ full=extractAndUpdateProfile(rawFull()); finalizeBubble(bubble,full,currentCrisis);
+        bubble.insertAdjacentHTML("beforeend",'<div class="interrupted">（已中断）</div>');
+        const h=getHist(sid,current);h.push({role:"assistant",content:full});setHist(sid,current,h);
+      }else bubble.parentNode.remove();
+    }
+    const aborted=(err&&err.name==="AbortError");
+    if(aborted){ setStatus("ok",full?"已中断":"已停止"); }
+    else{
+      setStatus("err","调用失败");
+      addBubble("ai","⚠️ 调用失败："+((err&&err.message)||err)+"\n\n"+failHint(err,c.apiUrl,c.model),true);
+    }
+  }finally{
+    clearTimeout(idle);
+    busy=false; setSendMode("send");
+    abortCtrl=null; updateCtx(); inputEl.focus();
+  }
+}
+function setSendMode(mode){
+  if(mode==="stop"){
+    sendBtn.classList.add("stop");
+    sendBtn.title="停止生成";
+    sendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="currentColor"><rect x="7" y="7" width="10" height="10" rx="1.6"/></svg>';
+  }else{
+    sendBtn.classList.remove("stop");
+    sendBtn.title="发送";
+    sendBtn.disabled=false;
+    sendBtn.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M12 5l7 7-7 7"/></svg>';
+  }
+}
+/* ---------- 生成统计：耗时 / token / 速度 ---------- */
+function setStats(bubble,t0,usage){
+  if(!bubble||!bubble.parentNode) return;
+  const wrap=bubble.closest(".msg"); if(!wrap) return;
+  wrap.querySelectorAll(".msg-meta").forEach(x=>x.remove());
+  const ms=Math.round(performance.now()-t0);
+  const secs=(ms/1000);
+  const parts=["⏱ "+(secs>=10?Math.round(secs):secs.toFixed(1))+" s"];
+  if(usage&&typeof usage.completion_tokens==="number"){
+    parts.push(usage.completion_tokens+" tok");
+    if(ms>200) parts.push((usage.completion_tokens/(ms/1000)).toFixed(1)+" tok/s");
+    if(typeof usage.prompt_tokens==="number")
+      parts.push("上下文 "+usage.prompt_tokens+" tok");
+  }
+  const meta=document.createElement("div");
+  meta.className="msg-meta";
+  meta.textContent=parts.join(" · ");
+  wrap.appendChild(meta);
+}
+
+/* =================================================================
+   断网检测：online/offline 联动状态灯
+   ================================================================= */
+window.addEventListener("offline",()=>{
+  setStatus("err","网络已断开");
+  toast(cfg().mode==="local"?"网络连接已断开（本地模型仍可用）":"网络连接已断开，云端 AI 暂时不可用","err");
+});
+window.addEventListener("online",()=>{
+  toast("网络已恢复，正在重新检测…","ok");
+  checkConnection(true);
+});
+
+/* 重新生成最后一条回答 */
+async function regenerate(){
+  if(busy) return;
+  const h=getHist(sid,current);
+  if(!h.length) return;
+  const last=h[h.length-1];
+  if(last.role==="assistant") h.pop();
+  const lastUser=[...h].reverse().find(m=>m.role==="user");
+  if(!lastUser) return;
+  setHist(sid,current,h);
+  chatEl.innerHTML="";
+  h.forEach(m=>addBubble(m.role,m.content,false,m.atts));
+  await ask(lastUser.content,{skipUser:true,atts:lastUser.atts||[]});
+}
+
+/* =================================================================
+   快捷指令
+   ================================================================= */
+const POLISH_CMD="请在不改变上一条回答结论与立场的前提下，将其作为初稿进行完善：补齐定义/原理/前置知识、补充关键步骤与可执行细节、标注易错点与注意事项、把模糊表述改为具体可操作建议，保持结构化排版，不要重复寒暄。";
+const CW_CMD="请基于上一个相关主题，按【生成课件·固定结构】输出一份完整课件（①学习目标 ②前置知识 ③核心定义/定理/公式 ④原理深度解析 ⑤典型例题 ⑥易错总结 ⑦文字版思维导图 ⑧课后建议）。若未指定主题，请先询问要生成哪一节的课件。";
+const EX_CMD="请基于上一个相关主题，按【生成习题·分层强制】输出：基础巩固题、中档考试常考题、综合拔高题；每题含完整题目、无跳步详解、标准答案、思路分析、易错提醒、考点归属。若未指定主题或语言，请先询问。";
+
+async function toolAction(act){
+  if(busy) return;
+  const hist=getHist(sid,current);
+  if(act==="clear"){ setHist(sid,current,[]); renderChat(); updateCtx(); toast("当前对话已清空"); return; }
+  if(!hist.length){
+    addBubble("ai","先在上方提一个问题或给出主题，我才能"+(act==="polish"?"完善上一条回答":act==="courseware"?"生成课件":"生成习题")+"。",true);
+    return;
+  }
+  await ask(act==="polish"?POLISH_CMD:act==="courseware"?CW_CMD:EX_CMD);
+}
+
+/* =================================================================
+   画像抽屉
+   ================================================================= */
+function isMobile(){return window.matchMedia("(max-width:900px)").matches;}
+/* v5：renderProfilePanel 已改为「可视化卡片 + 完整度」渲染（定义见文件前部演示模式区块），此处不再重复定义 —— 重复定义会覆盖新版实现 */
+function openDrawer(){ renderProfilePanel(); drawerEl.classList.add("open"); scrimEl.classList.add("show"); document.body.classList.add("drawer-open"); }
+function closeDrawer(){ drawerEl.classList.remove("open"); scrimEl.classList.remove("show"); document.body.classList.remove("drawer-open"); }
+$("profileBtn").onclick=openDrawer;
+$("profileBtnT").onclick=openDrawer;
+$("drawerClose").onclick=closeDrawer;
+scrimEl.onclick=closeDrawer;
+/* =================================================================
+   键盘快捷键
+   ================================================================= */
+const kbdMask=$("kbdMask");
+function openKbd(){ kbdMask.classList.add("show"); }
+function closeKbd(){ kbdMask.classList.remove("show"); }
+$("kbdClose").onclick=closeKbd;
+kbdMask.onclick=e=>{ if(e.target===kbdMask) closeKbd(); };
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){
+    if($("voiceOverlay")&&$("voiceOverlay").classList.contains("show")){
+      /* 语音层优先级最高：先挂断，避免一次 Esc 关闭多层浮层 */
+      e.stopPropagation();
+      if(typeof window.closeVoice==="function") window.closeVoice();
+      return;
+    }
+    if($("imgMask").classList.contains("show")) $("imgMask").classList.remove("show");
+    else if(kbdMask.classList.contains("show")) closeKbd();
+    else if($("modalMask").classList.contains("show")) $("modalMask").classList.remove("show");
+    else if(drawerEl.classList.contains("open")) closeDrawer();
+    return;
+  }
+  const inField=/^(INPUT|TEXTAREA|SELECT)$/.test((e.target&&e.target.tagName)||"")||(e.target&&e.target.isContentEditable);
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){   // Ctrl/⌘+K：高级设置
+    e.preventDefault();
+    if(modalMask.classList.contains("show")) modalMask.classList.remove("show");
+    else $("setBtn").click();
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="j"){   // Ctrl/⌘+J：切换深浅色
+    e.preventDefault(); $("themeBtn").click(); return;
+  }
+  if(inField) return;
+  if(e.key==="?"){ e.preventDefault(); kbdMask.classList.contains("show")?closeKbd():openKbd(); }
+  else if(e.key==="/"){ e.preventDefault(); inputEl.focus(); }
+});
+/* Shift+↑：回填上一条自己的提问，编辑后重发 */
+inputEl.addEventListener("keydown",e=>{
+  if(e.key==="ArrowUp"&&e.shiftKey){
+    e.preventDefault();
+    const lastUser=[...getHist(sid,current)].reverse().find(m=>m.role==="user");
+    if(lastUser){
+      inputEl.value=lastUser.content;
+      autoGrow(); inputEl.focus();
+      inputEl.setSelectionRange(inputEl.value.length,inputEl.value.length);
+      toast("已回填上一条提问，编辑后回车重发");
+    }
+  }
+});
+$("saveProfileBtn").onclick=()=>{
+  try{ setProfile(JSON.parse(profileTa.value)); toast("画像已保存","ok"); }
+  catch(e){ toast("JSON 格式有误："+e.message,"err"); }
+};
+$("clearProfileBtn").onclick=()=>{
+  setProfile(structuredClone(DEFAULT_PROFILE));
+  toast("画像已清空（与对话记录相互独立）");
+};
+$("clearBtn").onclick=()=>{ if(busy) return; setHist(sid,current,[]); renderChat(); updateCtx(); toast("当前对话已清空"); };
+
+/* =================================================================
+   主题
+   ================================================================= */
+$("themeBtn").onclick=()=>{
+  setThemeMode(isDark()?"light":"dark");
+  toast(isDark()?"已切换到深色模式":"已切换到浅色模式");
+};
+
+/* =================================================================
+   AI 设置：云端 / 本地 双模式
+   ================================================================= */
+const modalMask=$("modalMask"), modalStatus=$("modalStatus");
+const fApiUrl=$("cfgApiUrl"), fModel=$("cfgModel"), fApiKey=$("cfgApiKey");
+const fTemp=$("cfgTemp"), fTopP=$("cfgTopP");
+const fLocalUrl=$("cfgLocalUrl"), fLocalModel=$("cfgLocalModel"), fLocalKey=$("cfgLocalKey");
+const provSel=$("cfgProvider"), provHint=$("provHint");
+const cloudPane=$("cloudPane"), localPane=$("localPane");
+let modalMode="cloud";
+
+CLOUD_PRESETS.forEach(p=>{   // 服务商下拉只建一次
+  const o=document.createElement("option");
+  o.value=p.id; o.textContent=p.name; provSel.appendChild(o);
+});
+function paintProvHint(){
+  const p=presetById(provSel.value);
+  let h='<span class="tag'+(p.cors?"":" warn")+'">'+(p.cors?"浏览器可直连":"需本地中转")+'</span>'+
+        '<span class="tag">'+p.tag+'</span><br>'+p.note;
+  if(p.keyPage) h+='<br>拿 Key：<a href="'+p.keyPage+'" target="_blank" rel="noopener">'+p.keyPage+'</a>';
+  provHint.innerHTML=h;
+}
+function switchModalMode(m){
+  modalMode=(m==="local")?"local":"cloud";
+  [...document.querySelectorAll("#modeSeg button")].forEach(b=>b.classList.toggle("on",b.dataset.mode===modalMode));
+  cloudPane.hidden=modalMode!=="cloud";
+  localPane.hidden=modalMode!=="local";
+  modalStatus.className="modal-status";
+  modalStatus.textContent=modalMode==="cloud"
+    ? "填好 API Key 后点「测试连接」。云端不用装任何东西，手机浏览器也能用。"
+    : "确认本地服务已启动后点「测试连接」。LM Studio 默认端口 1234，Ollama 默认 11434。";
+}
+$("modeSeg").onclick=e=>{
+  const b=e.target.closest("button[data-mode]");
+  if(b) switchModalMode(b.dataset.mode);
+};
+provSel.onchange=()=>{
+  const p=presetById(provSel.value);
+  fApiUrl.value=p.base; fModel.value=p.model;   // 换服务商就带出它的地址与默认模型
+  paintProvHint();
+};
+function fillModal(){
+  const c=cfg();
+  provSel.value=c.provider;
+  fApiUrl.value=c.cloud.apiUrl||c.preset.base;
+  fModel.value=c.cloud.model||c.preset.model;
+  fApiKey.value=c.cloud.apiKey||"";
+  fLocalUrl.value=c.local.apiUrl; fLocalModel.value=c.local.model; fLocalKey.value=c.local.apiKey||"";
+  fTemp.value=c.temperature; fTopP.value=c.topP;
+  paintProvHint();
+  switchModalMode(c.mode);
+}
+function collectCfg(){
+  return {
+    mode:modalMode,
+    provider:provSel.value,
+    cloud:{ apiUrl:fApiUrl.value.trim(), model:fModel.value.trim(), apiKey:fApiKey.value.trim() },
+    local:{
+      apiUrl:fLocalUrl.value.trim()||DEFAULT_CFG.local.apiUrl,
+      model:fLocalModel.value.trim()||DEFAULT_CFG.local.model,
+      apiKey:fLocalKey.value.trim()
+    },
+    temperature:fTemp.value.trim()||DEFAULT_CFG.temperature,
+    topP:fTopP.value.trim()||DEFAULT_CFG.topP
+  };
+}
+$("setBtn").onclick=()=>{
+  fillModal(); modalMask.classList.add("show");
+  setTimeout(()=>{ (modalMode==="cloud"?fApiKey:fLocalUrl).focus(); },60);
+};
+$("modalClose").onclick=()=>modalMask.classList.remove("show");
+modalMask.onclick=e=>{ if(e.target===modalMask) modalMask.classList.remove("show"); };
+$("cfgSave").onclick=()=>{
+  saveCfg(collectCfg());
+  modalMask.classList.remove("show");
+  const c=cfg();
+  if(!cfgReady(c)){   // 云端缺 Key / 本地缺地址：不报错，直接进演示模式，流程照样能跑通
+    setDemo(true,true);
+    toast(modalMode==="cloud"
+      ?"已保存 · 云端还差一个 API Key，先用演示模式跑通流程"
+      :"已保存 · 本地地址不完整，先用演示模式跑通流程","err");
+    return;
+  }
+  checkConnection(true).then(ok=>{
+    setDemo(!ok,!ok);                       // 连上了就退出演示模式
+    if(ok) toast("已连接 "+modeText(c)+" · "+c.model,"ok");
+  });
+};
+$("cfgReset").onclick=()=>{   // 「恢复默认」同时清掉已保存的 Key，避免误留在共享电脑上
+  saveCfg({
+    mode:"cloud", provider:DEFAULT_CFG.provider,
+    cloud:{apiUrl:"",model:"",apiKey:""},
+    local:Object.assign({},DEFAULT_CFG.local),
+    temperature:DEFAULT_CFG.temperature, topP:DEFAULT_CFG.topP
+  });
+  fillModal();
+  modalStatus.className="modal-status ok";
+  modalStatus.textContent="已恢复默认，并清空本机保存的 API Key。";
+};
+$("cfgTest").onclick=()=>{   // 直接测当前表单（先落盘，避免测的和存的不一致）
+  saveCfg(collectCfg());
+  checkConnection(false,null,null,modalStatus);
+};
+/* v5：手动进入演示模式 —— 现场演示不依赖模型是否已加载 */
+$("cfgDemo").onclick=()=>{ modalMask.classList.remove("show"); setDemo(true); };
+connTipEl.onclick=()=>{
+  if(demoMode||!cfgReady(cfg())){ $("setBtn").click(); return; }   // 没配置好就别让用户看超时
+  checkConnection(false);
+};
+/* v5：首次使用知情同意 */
+$("consentOk").onclick=()=>{
+  try{ localStorage.setItem(CONSENT_KEY,"1"); }catch(e){}
+  $("consentMask").classList.remove("show");
+  try{ inputEl.focus(); }catch(e){}
+};
+
+/* =================================================================
+   输入交互
+   ================================================================= */
+function autoGrow(){ inputEl.style.height="auto"; inputEl.style.height=Math.min(inputEl.scrollHeight,180)+"px"; }
+function resetInputHeight(){ inputEl.value=""; inputEl.style.height="auto"; }
+inputEl.addEventListener("input",autoGrow);
+sendBtn.onclick=()=>{
+  if(busy){ if(abortCtrl) abortCtrl.abort(); return; }   // 生成中 → 停止
+  const t=inputEl.value.trim();
+  if(t||attachments.some(a=>a.status==="ready")) ask(t);
+};
+inputEl.addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&!e.shiftKey){
+    e.preventDefault();
+    const t=inputEl.value.trim();
+    if((t||attachments.some(a=>a.status==="ready"))&&!busy) ask(t);
+  }
+});
+
+/* =================================================================
+   附件入口：label 关联（移动端兼容） / 拖拽 / 粘贴
+   ================================================================= */
+/* label 已自动关联 fileInput，无需 JS .click() 触发（修复 iOS Safari / 微信浏览器 hidden input 不弹选择器的问题） */
+const attBtnLabel=$("attBtnLabel");
+attBtnLabel.addEventListener("click",e=>{
+  /* 防止某些 Android WebView 下 label 点击冒泡导致重复触发 */
+  // e.stopPropagation();  /* 不阻止，保持 label 默认行为 */
+});
+$("fileInput").addEventListener("change",e=>{ addFiles(e.target.files); e.target.value=""; });
+const inputWrap=document.querySelector(".input-wrap");
+/* 拖拽目标：整个舞台（对话区 + 输入区），拖到页面任意位置都可松手 */
+const stageEl=document.querySelector(".stage");
+function hasFiles(e){
+  try{
+    if(!e.dataTransfer) return false;
+    const types=e.dataTransfer.types;
+    if(!types||!types.length) return true;   /* 未知类型（如测试合成事件）按可放处理 */
+    return Array.prototype.indexOf.call(types,"Files")>=0;
+  }catch(_){ return false; }
+}
+["dragover","dragenter"].forEach(ev=>stageEl.addEventListener(ev,e=>{
+  e.preventDefault();
+  if(hasFiles(e)) inputWrap.classList.add("drag");
+}));
+["dragleave","drop"].forEach(ev=>stageEl.addEventListener(ev,e=>{
+  e.preventDefault();
+  /* relatedTarget 为 null 表示拖出了浏览器窗口，需清除 drag 样式 */
+  if(ev==="dragleave"&&(e.relatedTarget&&stageEl.contains(e.relatedTarget))) return;
+  inputWrap.classList.remove("drag");
+}));
+stageEl.addEventListener("drop",e=>{ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length) addFiles(e.dataTransfer.files); });
+inputWrap.addEventListener("paste",e=>{
+  const files=[...(e.clipboardData?e.clipboardData.files:[])].filter(f=>f.type.startsWith("image/"));
+  if(files.length){ e.preventDefault(); addFiles(files); toast("已粘贴 "+files.length+" 张图片","ok"); }
+});
+
+/* =================================================================
+   语音转文字（Web Speech API，识别结果进输入框）
+   ================================================================= */
+(function setupMic(){
+  const btn=$("micBtn");
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ btn.disabled=true; btn.title="当前浏览器不支持语音识别（推荐 Chrome / Edge）"; return; }
+  let rec=null, active=false, base="", finalTxt="", idleTimer=null;
+  const IDLE_MS=30000;   /* 30 秒无新语音自动停止，防止资源泄漏 */
+  function resetIdle(){ clearTimeout(idleTimer); idleTimer=setTimeout(()=>{ if(active)try{rec.stop();}catch(_){} },IDLE_MS); }
+  btn.onclick=()=>{
+    if(active){ try{ rec.stop(); }catch(_){} return; }
+    rec=new SR();
+    rec.lang="zh-CN"; rec.interimResults=true; rec.continuous=true;
+    base=inputEl.value.replace(/\s+$/,""); finalTxt="";
+    resetIdle();
+    rec.onresult=e=>{
+      resetIdle();   /* 每次收到结果重置空闲计时 */
+      let interim="";
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const r=e.results[i];
+        if(r.isFinal) finalTxt+=r[0].transcript; else interim+=r[0].transcript;
+      }
+      inputEl.value=(base?base+" ":"")+finalTxt+interim;
+      autoGrow();
+    };
+    rec.onend=()=>{ clearTimeout(idleTimer); active=false; btn.classList.remove("rec"); btn.title="语音输入"; };
+    rec.onerror=e=>{
+      clearTimeout(idleTimer);
+      active=false; btn.classList.remove("rec"); btn.title="语音输入";
+      if(e.error==="not-allowed"||e.error==="service-not-allowed") toast("麦克风权限被拒绝，请在浏览器地址栏允许麦克风","err");
+      else if(e.error!=="aborted"&&e.error!=="no-speech") toast("语音识别失败："+e.error,"err");
+    };
+    try{
+      rec.start(); active=true;
+      btn.classList.add("rec"); btn.title="正在聆听…点击停止";
+      toast("🎤 开始聆听，说完点击麦克风停止");
+    }catch(_){ toast("无法启动语音识别","err"); }
+  };
+})();
+
+/* =================================================================
+   语音助手：全屏语音通话（STT 语音识别 + TTS 语音播报）—— v6 合并自全新UI设计(6)
+   - 复用当前模块的 System Prompt、学生画像、对话历史，与文字模式实时同步
+   - AI 音色支持男声 / 女声；浏览器 Web Speech API 实现
+   - v6 修复：① 演示模式下走 makeDemoResponse，无需本地服务即可完整演示语音流程
+            ② closeVoice 不再无条件重置全局 busy，避免打断文字模式的进行中生成
+            ③ 模型返回空内容时给出可读提示，避免空播报
+   ================================================================= */
+(function voiceAssistant(){
+  function init(){
+    const overlay=$("voiceOverlay"), orbEl=$("voiceOrb"), orbIco=$("voOrbIco"),
+          subEl=$("voiceSubtitle"), statusEl=$("voiceStatus"), micEl=$("voiceMic"),
+          chipsEl=$("voChips"), icoEl=$("voIco"), nameEl=$("voName"),
+          hangupEl=$("voiceHangup");
+    if(!overlay) return;
+  const genderBtns=[].slice.call(document.querySelectorAll(".v-gender"));
+  const VOICE_KEY="aiAssistantVoiceGender";
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const synth=window.speechSynthesis;
+
+  let rec=null, listening=false, speaking=false, vbusy=false;
+  let voiceAbort=null;   /* AbortController for in-flight voice request */
+  let gender=localStorage.getItem(VOICE_KEY)||"female";
+  let voices=[];
+
+  function loadVoices(){ if(synth){ try{ voices=synth.getVoices()||[]; }catch(_){ voices=[]; } } }
+  if(synth){ loadVoices(); try{ synth.onvoiceschanged=loadVoices; }catch(_){} }
+
+  /* 把 Markdown 正文转成适合朗读的纯文本；保留 [思考过程] 占位但不朗读详细内容 */
+  function speakable(t){
+    t=String(t==null?"":t);
+    t=t.replace(/<<<PROFILE_UPDATE:[\s\S]*?>>>/g,"");
+    /* 原始思考链标签：模型可能把 <think>…</think> 直接塞进 content，朗读前剥掉 */
+    t=t.replace(/<think>[\s\S]*?<\/think>/g,"");
+    /* 保留思考过程标题但去掉详细内容，避免朗读模型内部推理 */
+    t=t.replace(/<details class="think-box"[\s\S]*?<\/details>/g,"（思考过程，已折叠）");
+    t=t.replace(/```[\s\S]*?```/g," 这段内容我显示在屏幕上了，你可以查看文字模式。 ");
+    t=t.replace(/`([^`]*)`/g,"$1");
+    t=t.replace(/!\[[^\]]*\]\([^)]*\)/g,"");
+    t=t.replace(/\[([^\]]*)\]\([^)]*\)/g,"$1");
+    t=t.replace(/https?:\/\/\S+/g,"");
+    t=t.replace(/[#>*_~|]+/g," ");
+    t=t.replace(/\s+/g," ").trim();
+    return t;
+  }
+  /* 长文本按句切块，避免部分浏览器截断超长 utterance */
+  function splitChunks(text){
+    const parts=text.split(/(?<=[。！？!?；;\n])/).map(s=>s.trim()).filter(Boolean);
+    const out=[]; let cur="";
+    for(const p of parts){
+      if((cur+p).length>120){ if(cur)out.push(cur); cur=p; } else cur+=p;
+    }
+    if(cur)out.push(cur);
+    if(!out.length && text) out.push(text.slice(0,200));
+    return out;
+  }
+  /* 依据音色偏好挑 voice + pitch（无独立男/女声时用音高近似区分） */
+  function pickVoice(){
+    const zh=voices.filter(v=>/zh|cmn|Chinese|中文|普通话|粤语|Cantonese/i.test((v.lang||"")+" "+(v.name||"")));
+    const fem=/female|xiaoxiao|xiaoyi|yaoyao|huihui|ting[- ]?ting|tingmei|xiaomo|xiaoru|mei|女|Google.*普通话/i;
+    const male=/male|yunxi|yunjian|yunye|yunfeng|yunhao|dali|kang|男/i;
+    let v=null;
+    if(gender==="male"){ v=zh.find(x=>male.test(x.name||""))||zh.find(x=>!fem.test(x.name||""))||null; }
+    else{ v=zh.find(x=>fem.test(x.name||""))||zh[0]||null; }
+    const pitch=gender==="male"?0.62:1.15;
+    return {voice:v,pitch};
+  }
+  function speak(text){
+    if(!synth) return;
+    try{ synth.cancel(); }catch(_){}
+    const clean=speakable(text);
+    if(!clean) return;
+    const {voice,pitch}=pickVoice();
+    const chunks=splitChunks(clean);
+    speaking=true; orbState("speaking"); vStatus("AI 正在回复中，可随时点麦克风打断","speaking");
+    chunks.forEach((ch,i)=>{
+      const u=new SpeechSynthesisUtterance(ch);
+      u.lang="zh-CN"; if(voice)u.voice=voice; u.pitch=pitch; u.rate=1.03; u.volume=1;
+      if(i===chunks.length-1){
+        u.onend=()=>{ if(speaking){ speaking=false; orbState("idle"); vStatus(SR?"点麦克风继续说话":"文字模式可继续对话","idle"); } };
+        u.onerror=()=>{ speaking=false; orbState("idle"); };
+      }
+      try{ synth.speak(u); }catch(_){}
+    });
+  }
+
+  function orbState(cls){ orbEl.className="vo-orb "+cls; }
+  function vStatus(text,state){ statusEl.textContent=text; statusEl.className="vo-status"+(state?" "+state:""); }
+  function setMicOn(on){ micEl.classList.toggle("on",!!on); micEl.textContent=on?"⏹":"🎤"; }
+  function setMicEnabled(b){ micEl.classList.toggle("disabled",!b); }
+
+  /* 字幕：展示当前模块最近一条 AI 回复 / 用户语音 */
+  function showYou(t){ subEl.innerHTML='<span class="v-you">'+esc(t)+'</span>'; subEl.scrollTop=subEl.scrollHeight; }
+  function showAI(t){
+    const v=speakable(t);
+    subEl.innerHTML=v?esc(v):"<span style='color:var(--muted)'>上一条回复包含代码/图片，请到文字模式查看完整内容</span>";
+    subEl.scrollTop=0;
+  }
+
+  /* 顶部 5 模块切换（复用文字模式的当前模块） */
+  function renderVoiceChips(){
+    chipsEl.innerHTML="";
+    ROLES.forEach(r=>{
+      const b=document.createElement("button");
+      b.className="vo-chip"+(r.id===current?" active":"");
+      b.textContent=r.icon+" "+r.name;
+      b.onclick=()=>{
+        if(r.id!==current){ switchRole(r.id); }
+        renderVoiceChips(); syncOrbHead();
+        const last=[].slice.call(getHist(sid,current)).reverse().find(m=>m.role==="assistant");
+        showAI(last?last.content:"");
+      };
+      chipsEl.appendChild(b);
+    });
+  }
+  function syncOrbHead(){
+    const r=roleById(current);
+    icoEl.textContent=r.icon; nameEl.textContent="语音 · "+r.name;
+    orbIco.textContent=r.icon;
+  }
+
+  function syncGenderUI(){ genderBtns.forEach(b=>b.classList.toggle("active",b.dataset.g===gender)); }
+
+  /* 语音专用 Prompt 后缀：让回答更口语化、短段落、少朗读大段代码 */
+  const VOICE_SUFFIX="\n\n【语音模式提示】当前是通过语音通话与你交流的学生。请用自然、口语化的中文回答，段落简短，每段不要太长；如果涉及代码、公式或大段推导，请给出核心结论并提示“详细内容已显示在屏幕的文字模式里”。不要输出 Markdown 代码块中不适合朗读的符号。";
+
+  /* 一次语音对话回合 */
+  async function voiceTurn(userText){
+    userText=String(userText||"").trim();
+    if(!userText) return;
+    if(vbusy||busy){ vStatus("正在处理中，请稍候","err"); return; }
+    busy=true; vbusy=true;
+    setMicEnabled(false); setMicOn(false);
+    showYou(userText);
+    vStatus("思考中…","thinking"); orbState("thinking");
+
+    /* 写入当前模块历史，保证画像与上下文与文字模式一致 */
+    const h=getHist(sid,current); h.push({role:"user",content:userText}); setHist(sid,current,h);
+    try{ renderChat(); updateCtx(); }catch(_){}
+
+    const c=cfg();
+    const sys=SP[current]+PROFILE_INSTRUCTION+VOICE_SUFFIX+"\n\n"+buildProfileBlock(current);
+    const msgs=[{role:"system",content:sys}];
+    getHist(sid,current).filter(m=>m.role!=="system").slice(-MAX_MSG).forEach(m=>{
+      msgs.push({role:m.role, content:buildApiContent(m)});
+    });
+
+    voiceAbort=new AbortController();
+    const reqTo=setTimeout(()=>{ try{ voiceAbort.abort(); }catch(_){} },IDLE_TIMEOUT);
+
+    try{
+      const headers=buildHeaders(c);
+      /* v6：演示模式下复用内置脚本回答，无需本地服务即可完整演示语音流程 */
+      const resp = isDemo()
+        ? makeDemoResponse(current,userText)
+        : await fetch(c.apiUrl,{
+            method:"POST",headers,
+            body:JSON.stringify({model:c.model,messages:msgs,stream:false,
+              temperature:parseNum(c.temperature,0.6),top_p:parseNum(c.topP,0.9)}),
+            signal:voiceAbort.signal
+          });
+      if(!resp.ok){ let d=""; try{const e=await resp.json();d=(e&&e.error&&(e.error.message||e.error))||"";}catch(_){} throw new Error("HTTP "+resp.status+(d?" · "+d:"")); }
+      const data=await resp.json();
+      const ch=(data&&data.choices&&data.choices[0])||{};
+      const msg=ch.message||{};
+      const raw=(msg.content)||"";
+      if(typeof msg.reasoning_content==="string" && msg.reasoning_content){
+        /* thinking 模型：字幕显示思考过程（折叠），朗读正文 */
+        subEl.innerHTML='<details class="think-box"><summary>💭 思考过程</summary><div class="think-body">'+
+          esc(msg.reasoning_content)+'</div></details>';
+      }
+      const visible=extractAndUpdateProfile(raw);
+      if(!visible){
+        /* v6：模型返回空内容时给出可读提示，避免空播报 */
+        vStatus("这次没有生成内容，请再说一遍","err"); orbState("idle"); return;
+      }
+      const h2=getHist(sid,current); const last=h2[h2.length-1];
+      if(!(last&&last.role==="assistant"&&last.content===visible)){ h2.push({role:"assistant",content:visible}); setHist(sid,current,h2); }
+      try{ renderChat(); }catch(_){}
+      showAI(visible);
+      speak(visible);
+    }catch(e){
+      if((e&&e.name)==="AbortError"){ vStatus("已中断","idle"); }
+      else{
+        vStatus("连接失败："+((e&&e.message)||e),"err"); orbState("idle");
+        try{ speak("抱歉，我这边连接出错了，请检查本地服务是否已经开启。"); }catch(_){}
+      }
+    }finally{
+      clearTimeout(reqTo);
+      voiceAbort=null; vbusy=false; busy=false; setMicEnabled(true);
+    }
+  }
+
+  /* 麦克风：点击说话（Web Speech API 识别） */
+  micEl.onclick=()=>{
+    if(vbusy) return;
+    if(!SR){ vStatus("当前浏览器不支持语音识别，建议用 Chrome / Edge","err"); return; }
+    if(listening){ try{ rec.stop(); }catch(_){} return; }
+    if(speaking){ try{ synth.cancel(); }catch(_){} speaking=false; }   // 打断 AI 说话
+    rec=new SR();
+    rec.lang="zh-CN"; rec.interimResults=true; rec.continuous=false;
+    let finalTxt="";
+    rec.onresult=e=>{
+      let interim="";
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const r=e.results[i];
+        if(r.isFinal) finalTxt+=r[0].transcript; else interim+=r[0].transcript;
+      }
+      showYou((finalTxt+interim)||"…");
+      vStatus("聆听中…请继续说，说完稍等自动发送","listening");
+    };
+    rec.onend=()=>{
+      listening=false; setMicOn(false);
+      const t=finalTxt.trim();
+      if(t){ voiceTurn(t); }
+      else{ orbState("idle"); vStatus("没听清，再点麦克风说话","idle"); }
+    };
+    rec.onerror=e=>{
+      listening=false; setMicOn(false); orbState("idle");
+      if(e.error==="not-allowed"||e.error==="service-not-allowed") vStatus("请在浏览器允许麦克风权限","err");
+      else if(e.error!=="no-speech"&&e.error!=="aborted") vStatus("识别失败："+e.error,"err");
+      else vStatus("没听清，再点麦克风说话","idle");
+    };
+    try{ rec.start(); listening=true; setMicOn(true); orbState("listening"); vStatus("聆听中，请说话…","listening"); }
+    catch(_){ vStatus("无法启动语音识别","err"); }
+  };
+
+  /* 音色切换 */
+  genderBtns.forEach(b=>{ b.onclick=()=>{
+    gender=b.dataset.g; try{ localStorage.setItem(VOICE_KEY,gender); }catch(_){}
+    syncGenderUI(); try{ synth&&synth.cancel(); }catch(_){} speaking=false; orbState("idle");
+    toast(gender==="male"?"已切换为 AI 男声":"已切换为 AI 女声","ok");
+  }; });
+
+  function syncMode(){
+    const ms=$("modeSwitch");
+    if(ms) ms.querySelectorAll(".mode-opt").forEach(b=>{
+      b.classList.toggle("active",(b.dataset.mode==="voice")===overlay.classList.contains("show"));
+    });
+  }
+  function openVoice(){
+    if(!SR&&!synth){ toast("当前浏览器不支持语音功能，建议用 Chrome / Edge 打开","err"); return; }
+    overlay.classList.add("show"); syncMode();
+    try{ document.activeElement.blur(); }catch(_){}
+    try{ synth&&synth.cancel(); }catch(_){} speaking=false;
+    renderVoiceChips(); syncGenderUI(); syncOrbHead();
+    const last=[].slice.call(getHist(sid,current)).reverse().find(m=>m.role==="assistant");
+    showAI(last?last.content:"");
+    orbState("idle");
+    vStatus(SR?"点麦克风开始说话":"此浏览器不支持语音识别，仅可用文字对话", SR?"idle":"err");
+  }
+  function closeVoice(){
+    overlay.classList.remove("show"); syncMode();
+    try{ rec&&rec.stop(); }catch(_){}
+    try{ voiceAbort&&voiceAbort.abort(); }catch(_){}
+    try{ synth&&synth.cancel(); }catch(_){}
+    listening=false; speaking=false;
+    /* v6：仅当语音回合占用 busy 时才释放，避免打断文字模式的进行中生成 */
+    if(vbusy){ vbusy=false; busy=false; }
+    setMicOn(false); setMicEnabled(true);
+    voiceAbort=null;
+  }
+  window.openVoice=openVoice;
+  window.closeVoice=closeVoice;   // 供全局 Esc 处理器调用
+  hangupEl.onclick=closeVoice;
+  /* 右上角状态栏：文字助手 / 语音助手 切换 */
+  const modeSwitch=$("modeSwitch");
+  if(modeSwitch) modeSwitch.querySelectorAll(".mode-opt").forEach(b=>{
+    b.onclick=()=>{
+      if(b.dataset.mode==="voice"){ if(!overlay.classList.contains("show")) openVoice(); }
+      else { if(overlay.classList.contains("show")) closeVoice(); }
+    };
+  });
+  syncMode();
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",init);
+  else init();
+})();
+
+/* =================================================================
+   启动
+   ================================================================= */
+initSessions();        // 多会话：迁移旧数据并决定当前会话
+syncThemeUI();
+applyRoleTheme(current);
+renderSessions(); renderRoles(); renderHead(); renderChips(); renderNotice(); renderChat(); renderProfilePanel();
+updateCtx();
+if(!navigator.onLine) setStatus("err","网络已断开");
+if(!consentDone()) $("consentMask").classList.add("show");
+/* 启动检测：配置齐全才发请求；云端没填 Key 就别等了，直接进演示模式，0 配置也能看到完整形态 */
+if(cfgReady()){
+  checkConnection(true).then(ok=>{ if(!ok) setDemo(true,true); });
+}else{
+  setDemo(true,true);
+}
+</script>
+<!-- ============ 语音助手：全屏语音通话层（v6 合并自全新UI设计(6)） ============ -->
+<div id="voiceOverlay" role="dialog" aria-label="语音助手" aria-modal="true">
+  <div class="vo-head">
+    <div class="vo-title"><span class="vo-ico" id="voIco">📚</span><span id="voName">语音 · 学科教师</span></div>
+    <div class="vo-chips" id="voChips"></div>
+    <button class="vo-hangup" id="voiceHangup">✕ 挂断</button>
+  </div>
+  <div class="vo-stage">
+    <div class="vo-orb idle" id="voiceOrb"><span class="vo-orb-in" id="voOrbIco">🎓</span></div>
+    <div class="vo-sub" id="voiceSubtitle"></div>
+    <div class="vo-status" id="voiceStatus">点麦克风开始说话</div>
+  </div>
+  <div class="vo-foot">
+    <div class="vo-gender" role="group" aria-label="AI 音色">
+      <button class="v-gender active" data-g="female">👩 女声</button>
+      <button class="v-gender" data-g="male">👨 男声</button>
+    </div>
+    <button class="vo-mic" id="voiceMic" title="点击说话" aria-label="麦克风">🎤</button>
+    <div class="vo-tip">点击麦克风说话，AI 会用语音回答</div>
+  </div>
+</div>
+
+<!-- ============ 代码放大查看模态框 ============ -->
+<div class="code-modal" id="codeModal" role="dialog" aria-label="代码查看" aria-modal="true">
+  <div class="cm-box">
+    <div class="cm-head">
+      <div class="cm-title"><span>📄</span><span class="code-lang" id="cmLang">code</span><span style="color:var(--muted);font-weight:500">· 完整代码</span></div>
+      <div class="cm-acts">
+        <button class="code-copy" id="cmCopy" type="button">复制</button>
+        <button class="cm-close" id="cmClose" type="button" aria-label="关闭">✕</button>
+      </div>
+    </div>
+    <div class="cm-body" id="cmBody"></div>
+  </div>
+</div>
+
+</body>
+</html>
