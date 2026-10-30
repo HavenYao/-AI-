@@ -1654,9 +1654,9 @@ const CLOUD_PRESETS=[
   {
     id:"openrouter", name:"OpenRouter（免费模型）",
     base:"https://openrouter.ai/api/v1/chat/completions",
-    model:"qwen/qwen3-8b:free", cors:true, tag:"模型名须带 :free",
+    model:"xingchen-agi/xing4.0-29b-a4b:free", cors:true, tag:"模型名须带 :free", autoFree:true, publicModels:true,
     keyPage:"https://openrouter.ai/keys",
-    note:"一个 Key 打通几十家模型。<b>模型 ID 必须带 :free 后缀才是免费</b>，例如 qwen/qwen3-8b:free、deepseek/deepseek-chat-v3-0324:free。需要能访问国际网络。"
+    note:"一个 Key 打通几十家模型，免费模型一直在轮换。<b>当前可用</b>：xingchen-agi/xing4.0-29b-a4b:free（中文好）、nvidia/nemotron-3.5-super-vl:free（多模态）、google/gemma-4-31b-it:free。<b>模型名必须带 :free</b>；模型不存在时会自动换成在架的免费模型。<br>⚠️ 首次使用前需在 <b>openrouter.ai/settings/privacy</b> 打开「允许免费端点 / 训练」开关，否则免费模型一律返回 404。"
   },
   {
     id:"zhipu", name:"智谱 GLM-Flash（完全免费）",
@@ -1764,16 +1764,24 @@ function cfgReady(c){
   if(!v.apiUrl||!v.model) return false;
   return v.mode==="local"?true:!!v.apiKey;
 }
-/* 统一请求头：云端与本地共用，避免三处各写一遍 Authorization */
-function buildHeaders(c,extra){
-  const h={"Content-Type":"application/json"};
+/* 统一请求头：云端与本地共用，避免三处各写一遍 Authorization
+   simple=true 用于 GET /models —— 只带 Authorization，少一个头就少一次预检，
+   在跨国链路上能明显降低失败率
+   ⚠️ HTTP 头只能是 Latin-1：值里出现中文会让 fetch 直接抛
+   TypeError（String contains non ISO-8859-1 code point），
+   表现和"跨域失败"一模一样，这里统一兜一层 */
+const asciiHeader=v=>String(v==null?"":v).replace(/[^\x20-\x7E]/g,"");
+function buildHeaders(c,extra,simple){
+  const h=simple?{}:{"Content-Type":"application/json"};
   if(c&&c.apiKey) h["Authorization"]="Bearer "+c.apiKey;
-  /* OpenRouter 建议带上来源标识，否则免费模型易被限流 */
-  if(c&&c.preset&&c.preset.id==="openrouter"){
+  /* OpenRouter 建议带上来源标识，否则免费模型易被限流；X-Title 必须是纯 ASCII */
+  if(c&&c.preset&&c.preset.id==="openrouter"&&!simple){
     h["HTTP-Referer"]=(location.origin&&location.origin!=="null")?location.origin:"http://localhost";
-    h["X-Title"]="AI学习伙伴";
+    h["X-Title"]="AI-Study-Mate";
   }
-  return Object.assign(h,extra||{});
+  const out=Object.assign(h,extra||{});
+  for(const k in out) out[k]=asciiHeader(out[k]);
+  return out;
 }
 function modeText(c){ return (c||cfg()).mode==="local"?"本地模型":"云端 AI"; }
 
@@ -2499,7 +2507,7 @@ async function probeChat(url,mid,c,ms){
   try{
     const r=await fetch(url,{
       method:"POST",headers:buildHeaders(c),signal:ctrl.signal,
-      body:JSON.stringify({model:mid,messages:[{role:"user",content:"ping"}],stream:false,max_tokens:1})
+      body:JSON.stringify({model:mid,messages:[{role:"user",content:"ping"}],stream:false,max_tokens:32})
     });
     const txt=await r.text();
     let d=null; try{ d=JSON.parse(txt); }catch(_){}
@@ -2558,14 +2566,15 @@ async function checkConnection(silent,apiUrl,model,statusEl){
 
   const modelsUrl=deriveModelsUrl(url);
 
-  /* ① 有 /models 的厂商：能列出模型并核对模型名，体验最好 */
+  /* ① 有 /models 的厂商：能列出模型并核对模型名，体验最好
+        注意：跨国链路首连常要 3–8 秒，超时给足，否则会被误判成"连接失败" */
   let ids=null, modelsCors=false;
   try{
     const ctrl=new AbortController();
-    const to=setTimeout(()=>ctrl.abort(),6000);
+    const to=setTimeout(()=>ctrl.abort(),12000);
     let r;
     try{
-      r=await fetch(modelsUrl,{method:"GET",headers:buildHeaders(c),signal:ctrl.signal});
+      r=await fetch(modelsUrl,{method:"GET",headers:buildHeaders(c,null,true),signal:ctrl.signal});
     }finally{ clearTimeout(to); }
     if(r.ok){
       const d=await r.json();
@@ -2574,37 +2583,70 @@ async function checkConnection(silent,apiUrl,model,statusEl){
     }
   }catch(e){ if(isCorsError(e)) modelsCors=true; }
 
-  if(ids&&ids.length){
-    const hit=ids.find(x=>x===mid)||ids.find(x=>x.split(":")[0]===mid.split(":")[0])||
-      ids.find(x=>normModelId(x)===normModelId(mid));   // 宽松匹配：忽略大小写与分隔符差异
-    if(!hit){
-      setStatus("err","已连通 · 无 "+mid);
-      put("err","✅ 服务已连通（Key 有效）\n❌ 但找不到模型「"+mid+"」\n\n当前可用模型（前 20 个）：\n  "+
-        ids.slice(0,20).join("\n  ")+"\n\n请把「模型 ID」改成上面任意一个后保存。");
-      return false;
-    }
-    return finishOk(hit,"可用模型数："+ids.length);
+  const matchModel=list=>list.find(x=>x===mid)||list.find(x=>x.split(":")[0]===mid.split(":")[0])||
+    list.find(x=>normModelId(x)===normModelId(mid));     // 宽松匹配：忽略大小写与分隔符差异
+  const hit=(ids&&ids.length)?matchModel(ids):"";
+  const publicModels=!!(c.preset&&c.preset.publicModels);  // /models 公开可读（如 OpenRouter），读得到不代表 Key 有效
+  const autoFree=!!(c.preset&&c.preset.autoFree);
+
+  /* 免费名单轮换兜底：OpenRouter 这类厂商会整体换血，与其让用户对着一串模型名猜，
+     不如自动挑一个当前还在免费名单里的模型 */
+  let target=hit, switched="";
+  if(!target&&autoFree&&ids&&ids.length){
+    target=ids.find(x=>/:free$/i.test(x))||"";
+    if(target) switched="（原来的「"+mid+"」已下架，已自动切换到 "+target+"）";
+  }
+  if(!target) target=mid;
+
+  /* 私有 /models 已能证明「Key 有效 + 模型存在」，直接成功，省一次请求 */
+  if(hit&&!publicModels) return finishOk(hit,"可用模型数："+ids.length);
+  if(switched&&!publicModels){
+    saveCfg({cloud:{model:target}});
+    return finishOk(target,switched);
   }
 
-  /* ② 没有 /models（智谱、方舟…）→ 真发一次 1 token 的请求来验证 */
+  /* ② 其余情况真发一次 1 token 的请求：没有 /models 的厂商（智谱、方舟）、
+     /models 公开的厂商（OpenRouter）、以及模型名对不上的情况，都要靠它定论 */
   try{
-    const pr=await probeChat(url,mid,c,25000);
-    if(pr.ok) return finishOk(mid,"（该厂商不提供模型列表，已用一次真实请求验证通过）");
+    const pr=await probeChat(url,target,c,45000);
+    if(pr.ok){
+      if(switched) saveCfg({cloud:{model:target}});
+      return finishOk(target,
+        switched?switched:
+        hit?"Key 已通过一次真实请求验证":
+        (ids&&ids.length?"可用模型数："+ids.length:"（该厂商不提供模型列表，已用一次真实请求验证通过）"));
+    }
     const em=pickErrMsg(pr.data,pr.text);
+    /* OpenRouter 免费模型的高频坑：账号没开「允许训练/免费端点」时，
+       模型明明在架却返回 404 No endpoints found matching your data policy */
+    if(/data.?policy|no endpoints found|training|privacy/i.test(em)){
+      setStatus("err","需先开免费端点权限");
+      put("err","❌ 这个免费模型被你的账号隐私设置挡住了\n\n"+em+
+        "\n\nOpenRouter 的免费模型要求账号允许「把提示词用于训练」，否则一律 404。\n解法：\n① 打开 https://openrouter.ai/settings/privacy\n② 把 <允许免费端点 / Enable free endpoints that require training> 一类开关全部打开\n③ 回到这里点「测试连接」\n\n不想开这个开关？换一家：硅基流动 / 阿里百炼 / 魔搭（都不用额外授权）");
+      return false;
+    }
     if(pr.status===401||pr.status===403){
       setStatus("err","Key 无效或权限不足");
       put("err","❌ 鉴权失败（HTTP "+pr.status+"）\n\n"+em+
-        "\n\n① Key 是否复制完整（注意首尾空格与换行）\n② Key 与「接口地址」是否属于同一家服务商\n③ 该 Key 是否已开通这个模型");
+        "\n\n① Key 是否复制完整（注意首尾空格与换行）\n② Key 与「接口地址」是否属于同一家服务商\n③ 该 Key 是否已开通这个模型"
+        +(publicModels?"\n\n💡 该服务商的模型列表是公开的，所以「列得出模型」不等于「Key 有效」，这里才验了真 Key。":""));
       return false;
+    }
+    /* 400/422 是「请求参数不被这个模型接受」，不等于连不上：模型在架、Key 也过了鉴权，
+       真实对话通常照样能用，所以给提示而不是拦下用户 */
+    if((pr.status===400||pr.status===422)&&!/模型不存在|model not found|no such model|unknown model/i.test(em)){
+      if(switched) saveCfg({cloud:{model:target}});
+      return finishOk(target,"（该模型拒绝了探测请求，属正常现象，直接发消息试试）");
     }
     if(pr.status===404){
       setStatus("err","模型或地址不存在");
-      put("err","❌ 404 · 找不到接口或模型\n\n"+em+"\n\n① 检查模型 ID（当前："+mid+"）\n② 接口地址是否与所选服务商匹配\n   智谱 → /api/paas/v4/chat/completions\n   通义 → /compatible-mode/v1/chat/completions");
+      put("err","❌ 404 · 找不到接口或模型\n\n"+em+"\n\n① 检查模型 ID（当前："+target+"）\n② 接口地址是否与所选服务商匹配\n   智谱 → /api/paas/v4/chat/completions\n   通义 → /compatible-mode/v1/chat/completions"
+        +(ids&&ids.length?"\n\n该服务商当前可用模型（前 20 个）：\n  "+ids.slice(0,20).join("\n  "):""));
       return false;
     }
     if(pr.status===429){
       setStatus("err","限流 / 额度用尽");
-      put("err","❌ HTTP 429：触发限流或免费额度用完\n\n"+em+"\n\n① 等一分钟再试\n② 换同厂商另一个免费模型\n③ 或在「服务商」里换一家");
+      put("err","❌ HTTP 429：触发限流或免费额度用完\n\n"+em+"\n\n① 等 30-60 秒再试（免费模型排队很常见）\n② 换同厂商另一个免费模型\n③ 或在「服务商」里换一家");
       return false;
     }
     setStatus("err","连接失败");
@@ -2614,10 +2656,12 @@ async function checkConnection(silent,apiUrl,model,statusEl){
     const aborted=(e&&e.name==="AbortError");
     setStatus("err",aborted?"连接超时":"连接失败");
     if(modelsCors||isCorsError(e)){
-      put("err","❌ 被浏览器拦下了（跨域 / CORS）\n\n"+url+
-        "\n\n这通常不是 Key 的问题，而是该厂商不允许网页直接调用接口。\n\n"+
+      put("err","❌ 请求没能发出去（跨域被拦，或网络根本到不了该域名）\n\n"+url+
+        "\n\n两种可能，按顺序排查：\n"+
+        "① 网络不通——先看浏览器能不能打开该厂商官网；跨国厂商（OpenRouter / Gemini）在国内常超时或需要代理\n"+
+        "② 真的被跨域拦了——该厂商不允许网页直接调用\n\n"+
         (isCloud
-          ? "三种解法：\n① 换一家支持浏览器直连的服务商 —— 硅基流动 / 阿里百炼 / 魔搭 / OpenRouter（设置里标 ✅）\n② 用附带的中转脚本：python proxy.py，再把接口地址改成 http://localhost:8787/v1/chat/completions\n③ 自己部署时，让服务端把本页域名加入允许来源"
+          ? "最快的解法：换一家国内可直连的服务商（硅基流动 / 阿里百炼 / 魔搭，设置里标 ✅）\n实在要用 ❌ 厂商：跑一次 python AI学习伙伴-proxy.py，地址填 http://localhost:8787/v1/chat/completions"
           : "解法：\n① LM Studio：Settings → Server → 勾选 Enable CORS\n② Ollama：OLLAMA_ORIGINS=* ollama serve\n③ 用 python3 -m http.server 打开本页，别双击 file://\n④ 代理软件把 localhost 设为直连"));
       return false;
     }

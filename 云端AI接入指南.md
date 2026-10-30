@@ -59,7 +59,11 @@
 
 - **阿里云百炼**：<https://bailian.console.aliyun.com/> 开通「模型服务」后，在 API-KEY 页面创建；需实名。模型 ID 用 `qwen-flash`（免费额度大），想要更强换 `qwen-plus`。
 - **魔搭 ModelScope**：<https://modelscope.cn/my/myaccesstoken> 获取 Access Token；需绑定阿里云账号。
-- **OpenRouter**：<https://openrouter.ai/keys> 创建 Key；**模型 ID 必须带 `:free` 后缀**才免费，例如 `qwen/qwen3-8b:free`。
+- **OpenRouter**：<https://openrouter.ai/keys> 创建 Key；**模型 ID 必须带 `:free` 后缀**才免费。
+  ⚠️ 两个必踩的坑：
+  1. **先在 <https://openrouter.ai/settings/privacy> 打开「允许免费端点 / 训练」开关**，否则免费模型一律返回 `404 No endpoints found matching your data policy`
+  2. 免费名单经常整体换血（Qwen 全系已不在免费列表）。当前可用：`xingchen-agi/xing4.0-29b-a4b:free`（中文好）、`nvidia/nemotron-3.5-super-vl:free`（多模态）、`google/gemma-4-31b-it:free`。模型名写错时程序会自动切换到在架的免费模型
+  3. 国内访问可能不稳，现场演示优先用前三家
 - **换服务商**：设置里换一个「服务商」，接口地址和默认模型会自动带出，只需重填 Key。
 
 ---
