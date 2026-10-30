@@ -1654,9 +1654,9 @@ const CLOUD_PRESETS=[
   {
     id:"openrouter", name:"OpenRouter（免费模型）",
     base:"https://openrouter.ai/api/v1/chat/completions",
-    model:"xingchen-agi/xing4.0-29b-a4b:free", cors:true, tag:"模型名须带 :free", autoFree:true, publicModels:true,
+    model:"nvidia/nemotron-3.5-super-vl:free", cors:true, tag:"模型名须带 :free", autoFree:true, publicModels:true,
     keyPage:"https://openrouter.ai/keys",
-    note:"一个 Key 打通几十家模型，免费模型一直在轮换。<b>当前可用</b>：xingchen-agi/xing4.0-29b-a4b:free（中文好）、nvidia/nemotron-3.5-super-vl:free（多模态）、google/gemma-4-31b-it:free。<b>模型名必须带 :free</b>；模型不存在时会自动换成在架的免费模型。<br>⚠️ 首次使用前需在 <b>openrouter.ai/settings/privacy</b> 打开「允许免费端点 / 训练」开关，否则免费模型一律返回 404。"
+    note:"一个 Key 打通几十家模型，免费模型一直在轮换。<b>首选</b> nvidia/nemotron-3.5-super-vl:free（100 万上下文、支持看图讲题，实测稳定）；备选 xingchen-agi/xing4.0-29b-a4b:free（中文好但常排队）、google/gemma-4-31b-it:free。<b>模型名必须带 :free</b>；模型不存在时会自动换成在架的免费模型。偶发 <b>429</b> 是免费模型排队，等 30 秒或换上面另一个即可。<br>⚠️ 首次使用前需在 <b>openrouter.ai/settings/privacy</b> 打开「允许免费端点 / 训练」开关，否则免费模型一律返回 404。"
   },
   {
     id:"zhipu", name:"智谱 GLM-Flash（完全免费）",
@@ -1965,7 +1965,72 @@ function extractAndUpdateProfile(text){
   }
   return visible;
 }
-function stripForDisplay(text){ const i=text.indexOf(PROFILE_TAG); return i>=0?text.slice(0,i):text; }
+function stripForDisplay(text){ return deLaTeX(text.indexOf(PROFILE_TAG)>=0?text.slice(0,text.indexOf(PROFILE_TAG)):text); }
+
+/* =================================================================
+   LaTeX 净化层
+   系统提示已强制「数学只用纯文本」，但部分云端模型（nemotron 等）
+   仍会输出 \frac{1}{2}、\lim_{t\to 0} 这类源码，直接显示就是乱码。
+   这里统一转成 Unicode 数学文本；代码块与画像标记段原样保留，
+   避免破坏代码和 JSON。
+   ================================================================= */
+const LATEX_SYM={
+  cdot:"×",times:"×",div:"÷",pm:"±",mp:"∓",leq:"≤",le:"≤",geq:"≥",ge:"≥",
+  neq:"≠",ne:"≠",approx:"≈",equiv:"≡",propto:"∝",infty:"∞",to:"→",
+  rightarrow:"→",leftarrow:"←",Rightarrow:"⇒",Leftarrow:"⇐",Leftrightarrow:"⇔",
+  "in":"∈",notin:"∉",subset:"⊂",subseteq:"⊆",cup:"∪",cap:"∩",emptyset:"∅",
+  forall:"∀",exists:"∃",partial:"∂",nabla:"∇",degree:"°",circ:"°",prime:"′",
+  ldots:"…",cdots:"…",dots:"…",quad:"  ",qquad:"    ",
+  alpha:"α",beta:"β",gamma:"γ",delta:"δ",epsilon:"ε",varepsilon:"ε",zeta:"ζ",
+  eta:"η",theta:"θ",iota:"ι",kappa:"κ",lambda:"λ",mu:"μ",nu:"ν",xi:"ξ",pi:"π",
+  rho:"ρ",sigma:"σ",tau:"τ",upsilon:"υ",phi:"φ",varphi:"φ",chi:"χ",psi:"ψ",omega:"ω",
+  Gamma:"Γ",Delta:"Δ",Theta:"Θ",Lambda:"Λ",Xi:"Ξ",Pi:"Π",Sigma:"Σ",Phi:"Φ",Psi:"Ψ",Omega:"Ω",
+  sin:"sin",cos:"cos",tan:"tan",cot:"cot",sec:"sec",csc:"csc",arcsin:"arcsin",
+  arccos:"arccos",arctan:"arctan",sinh:"sinh",cosh:"cosh",tanh:"tanh",
+  "ln":"ln","log":"log",lim:"lim",max:"max",min:"min",sup:"sup",inf:"inf",
+  det:"det",dim:"dim",deg:"deg",exp:"exp",gcd:"gcd",operatorname:""
+};
+const SUP_MAP={"0":"⁰","1":"¹","2":"²","3":"³","4":"⁴","5":"⁵","6":"⁶","7":"⁷","8":"⁸","9":"⁹","+":"⁺","-":"⁻","=":"⁼","(":"⁽",")":"⁾","n":"ⁿ","i":"ⁱ"};
+const SUB_MAP={"0":"₀","1":"₁","2":"₂","3":"₃","4":"₄","5":"₅","6":"₆","7":"₇","8":"₈","9":"₉","+":"₊","-":"₋","=":"₌","(":"₍",")":"₎","n":"ₙ","i":"ᵢ","j":"ⱼ","k":"ₖ"};
+function hasLatex(t){
+  return /\$\$|\\(?:frac|dfrac|tfrac|sqrt|lim|int|sum|prod|left|right|cdot|times|div|pm|leq|geq|neq|approx|infty|to|rightarrow|alpha|beta|gamma|delta|theta|pi|mu|lambda|sigma|omega|Delta|sin|cos|tan|ln|log|begin|text|mathrm)|\\\(|\\\[|[a-zA-Z]\^\{|[a-zA-Z]_\{|\$[^$\n]{1,80}[\\^_{}][^$\n]{0,80}\$/.test(t);
+}
+function deLaTeX(text){
+  if(!text||!hasLatex(text)) return text;
+  const SENTINEL="\u0001BLK";
+  const slots=[];
+  const protect=re=>{ text=text.replace(re,m=>{ slots.push(m); return SENTINEL+(slots.length-1)+"\u0001"; }); };
+  protect(/<<<PROFILE_UPDATE:[\s\S]*?>>>/g);          // 画像标记（含 JSON 花括号）
+  protect(/```[\s\S]*?```/g);                          // 代码块
+  protect(/`[^`\n]+`/g);                               // 行内代码
+  let s=text;
+  s=s.replace(/\$\$/g,"\n").replace(/\$/g,"");         // 数学定界符
+  s=s.replace(/\\\(|\\\)|\\\[|\\\]/g,"");              // \( \) \[ \]
+  s=s.replace(/\\(?:text|mathrm|mathbf|mathit|mathcal|operatorname\*?)\s*\{([^{}]*)\}/g,"$1");
+  s=s.replace(/\\begin\{[a-z*]+\}|\\end\{[a-z*]+\}/g,"");
+  for(let k=0;k<4;k++){                                // \lim_{...} / \sum \int \prod
+    s=s.replace(/\\lim\s*_\s*\{([^{}]*)\}/g,"lim($1)");
+    s=s.replace(/\\sum\s*_\s*\{([^{}]*)\}\s*\^\s*\{([^{}]*)\}/g,"Σ($1→$2)");
+    s=s.replace(/\\int\s*_\s*\{([^{}]*)\}\s*\^\s*\{([^{}]*)\}/g,"∫[$1→$2]");
+    s=s.replace(/\\prod\s*_\s*\{([^{}]*)\}\s*\^\s*\{([^{}]*)\}/g,"Π($1→$2)");
+  }
+  for(let k=0;k<4;k++){                                // \sqrt{..}（含嵌套一层）
+    s=s.replace(/\\sqrt\s*\[([^\]]*)\]\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g,(_,n,x)=>"√["+n+"]("+x+")");
+    s=s.replace(/\\sqrt\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g,(_,x)=>"√("+x+")");
+  }
+  for(let k=0;k<5;k++){                                // \frac{A}{B} → (A)/(B)（支持嵌套）
+    if(!/\\(?:d?frac|tfrac)/.test(s)) break;
+    s=s.replace(/\\(?:d?frac|tfrac)\s*\{((?:[^{}]|\{[^{}]*\})*)\}\s*\{((?:[^{}]|\{[^{}]*\})*)\}/g,(_,a,b)=>"("+a+")/("+b+")");
+  }
+  s=s.replace(/\^\{([^{}]*)\}/g,(_,g)=>[...g].every(c=>SUP_MAP[c]!==undefined)?[...g].map(c=>SUP_MAP[c]).join(""):"^("+g+")");
+  s=s.replace(/_\{([^{}]*)\}/g,(_,g)=>[...g].every(c=>SUB_MAP[c]!==undefined)?[...g].map(c=>SUB_MAP[c]).join(""):"_("+g+")");
+  s=s.replace(/\^(\d)/g,(_,d)=>SUP_MAP[d]);            // ^2 → ²
+  s=s.replace(/\\([a-zA-Z]+)/g,(m,w)=>LATEX_SYM[w]!==undefined?LATEX_SYM[w]:"");  // 剩余命令→符号或删除
+  s=s.replace(/\\\\/g,"\n").replace(/&/g," ");         // 换行 / 对齐符
+  s=s.replace(/[{}]/g,"").replace(/(^|\n)[ \t]+/g,"$1").replace(/\n{3,}/g,"\n\n");
+  s=s.replace(/\u0001BLK(\d+)\u0001/g,(_,i)=>slots[+i]||"");
+  return s;
+}
 function mergeProfile(upd){
   const p=getProfile();
   for(const grp in upd){
@@ -3135,7 +3200,7 @@ async function ask(userText,opts){
       if(typeof msg.reasoning_content==="string") thinkRaw+=msg.reasoning_content;
       typing.remove();
       bubble=addBubble("ai","",false);
-      full=extractAndUpdateProfile(rawFull());   // 修正：非流式分支此前漏掉了画像抽取
+      full=deLaTeX(extractAndUpdateProfile(rawFull()));   // 修正：非流式分支此前漏掉了画像抽取
       finalizeBubble(bubble,full,currentCrisis);
       if(data&&data.usage) usage=data.usage;
       setStats(bubble,t0,usage);
@@ -3187,7 +3252,7 @@ async function ask(userText,opts){
         }
       }
       if(!bubble){ try{typing.remove();}catch(_){} bubble=addBubble("ai","",false); }
-        full=extractAndUpdateProfile(rawFull());
+        full=deLaTeX(extractAndUpdateProfile(rawFull()));
         finalizeBubble(bubble,full,currentCrisis);
         setStats(bubble,t0,usage);
     }
@@ -3202,7 +3267,7 @@ async function ask(userText,opts){
   }catch(err){
     try{ typing.remove(); }catch(_){}
     if(bubble&&bubble.parentNode){
-      if(full.trim()){ full=extractAndUpdateProfile(rawFull()); finalizeBubble(bubble,full,currentCrisis);
+      if(full.trim()){ full=deLaTeX(extractAndUpdateProfile(rawFull())); finalizeBubble(bubble,full,currentCrisis);
         bubble.insertAdjacentHTML("beforeend",'<div class="interrupted">（已中断）</div>');
         const h=getHist(sid,current);h.push({role:"assistant",content:full});setHist(sid,current,h);
       }else bubble.parentNode.remove();
@@ -3758,7 +3823,7 @@ inputWrap.addEventListener("paste",e=>{
         subEl.innerHTML='<details class="think-box"><summary>💭 思考过程</summary><div class="think-body">'+
           esc(msg.reasoning_content)+'</div></details>';
       }
-      const visible=extractAndUpdateProfile(raw);
+      const visible=deLaTeX(extractAndUpdateProfile(raw));
       if(!visible){
         /* v6：模型返回空内容时给出可读提示，避免空播报 */
         vStatus("这次没有生成内容，请再说一遍","err"); orbState("idle"); return;
